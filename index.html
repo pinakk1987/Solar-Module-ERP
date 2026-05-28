@@ -237,7 +237,7 @@ select.filter{background:var(--white);border:1px solid var(--bd);border-radius:v
     </div>
     <div style="background:var(--blue-lt);border-left:3px solid var(--blue);padding:8px 12px;border-radius:var(--r);margin-bottom:20px;font-size:11px;color:var(--blue)">🔒 Sign in with your corporate credentials</div>
     <div class="form-group"><label class="form-label">EMAIL</label><input class="inp" id="loginEmail" type="email" value="admin@solaros.in" style="margin:0"></div>
-    <div class="form-group" style="margin-bottom:16px"><label class="form-label">PASSWORD</label><input class="inp" type="password" value="password123" style="margin:0"></div>
+    <div class="form-group" style="margin-bottom:16px"><label class="form-label">PASSWORD</label><input class="inp" id="loginPassword" type="password" value="password123" style="margin:0"></div>
     <button class="btn btn-primary w100" style="padding:11px;font-size:13px;justify-content:center" id="btnSignIn">Sign In →</button>
     <div style="text-align:center;margin-top:12px"><button class="lnk" id="btnForgot">Forgot password?</button></div>
     <div style="text-align:center;margin-top:10px;font-size:10px;color:var(--t3)">Protected by SolarOS SSO · Azure AD</div>
@@ -255,7 +255,7 @@ select.filter{background:var(--white);border:1px solid var(--bd);border-radius:v
       <div style="font-size:16px;font-weight:700;color:var(--navy)">Two-Factor Authentication</div>
       <div style="font-size:11px;color:var(--t3);margin-top:4px">Enter the 6-digit code from your authenticator app</div>
     </div>
-    <input class="inp" style="text-align:center;font-size:22px;letter-spacing:8px" maxlength="6" value="248163">
+    <input class="inp" id="mfaCode" style="text-align:center;font-size:22px;letter-spacing:8px" maxlength="6" value="123456">
     <button class="btn btn-primary w100" id="btnVerifyMFA" style="padding:11px;justify-content:center">✓ Verify &amp; Sign In</button>
     <div style="text-align:center;margin-top:10px"><button class="lnk" id="btnMFABack">← Back</button></div>
   </div>
@@ -850,10 +850,16 @@ select.filter{background:var(--white);border:1px solid var(--bd);border-radius:v
 
 <script>
 // ══════════════════════════════════════════
-// CORE ENGINE — ALL EVENTS DELEGATED
+// SOLAROS ERP — FULL API INTEGRATION
 // ══════════════════════════════════════════
+const API_BASE = 'http://localhost:4000/api';
+let authToken = localStorage.getItem('solar_token');
+let currentUser = JSON.parse(localStorage.getItem('solar_user') || 'null');
+let challengeId = null;
+let aiConversationId = null;
+let currentModalCb = null;
 
-// TOAST
+// ── UTILITIES ──
 function toast(msg, type) {
   var wrap = document.getElementById('toastWrap');
   var el = document.createElement('div');
@@ -864,110 +870,925 @@ function toast(msg, type) {
   setTimeout(function() { el.classList.remove('show'); setTimeout(function() { el.remove(); }, 300); }, 3200);
 }
 
-// NAVIGATION
+function fmt(val) {
+  if (val === null || val === undefined || val === '') return '—';
+  if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+  var s = String(val);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    try { return new Date(val).toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'}); } catch(e) { return s; }
+  }
+  return s;
+}
+
+function fmtAmt(n) {
+  var v = Number(n || 0);
+  if (v >= 10000000) return '₹' + (v/10000000).toFixed(2) + 'Cr';
+  if (v >= 100000) return '₹' + (v/100000).toFixed(2) + 'L';
+  return '₹' + v.toLocaleString('en-IN');
+}
+
+function statusTag(status) {
+  var map = {DRAFT:'gray',PENDING_APPROVAL:'amber',APPROVED:'green',REJECTED:'red',
+    OPEN:'blue',PARTIALLY_RECEIVED:'amber',RECEIVED:'green',CLOSED:'gray',CANCELLED:'red',
+    PENDING_IQC:'amber',PASSED:'green',FAILED:'red',IN_PROGRESS:'blue',COMPLETED:'green',
+    ON_HOLD:'amber',POSTED:'green',PAID:'green',OVERDUE:'red',PENDING:'amber',PARTIAL:'blue',
+    PLANNED:'gray',RELEASED:'blue',PASS:'green',CONDITIONAL_PASS:'amber',FAIL:'red',
+    PRESENT:'green',ABSENT:'red',INACTIVE:'gray',ON_LEAVE:'amber',UNDER_REVIEW:'amber',
+    BLOCKED:'red',High:'red',Medium:'amber',Low:'green'};
+  var color = map[status] || 'gray';
+  return '<span class="tag tag-' + color + '">' + (status || '—') + '</span>';
+}
+
+function loadingRow(cols) {
+  return '<tr><td colspan="' + cols + '" style="text-align:center;padding:24px;color:var(--t3)">⟳ Loading...</td></tr>';
+}
+function emptyRow(cols, msg) {
+  return '<tr><td colspan="' + cols + '" style="text-align:center;padding:24px;color:var(--t3)">' + (msg || 'No records found') + '</td></tr>';
+}
+function errRow(cols, msg) {
+  return '<tr><td colspan="' + cols + '" style="text-align:center;padding:16px;color:var(--red)">⚠ ' + msg + '</td></tr>';
+}
+
+// ── API HELPER ──
+async function api(path, opts) {
+  opts = opts || {};
+  var headers = {'Content-Type': 'application/json'};
+  if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+  Object.assign(headers, opts.headers || {});
+  var res = await fetch(API_BASE + path, Object.assign({}, opts, {headers: headers}));
+  if (res.status === 401) { logout(); throw new Error('Session expired.'); }
+  var data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+// ── AUTH ──
+async function doLogin() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var pw = document.getElementById('loginPassword').value;
+  if (!email || !pw) { toast('Enter email and password', 'error'); return; }
+  try {
+    var r = await api('/auth/login', {method:'POST', body: JSON.stringify({email, password: pw})});
+    challengeId = r.challengeId;
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('mfaBox').style.display = 'block';
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function doMFA() {
+  var code = document.getElementById('mfaCode').value.trim();
+  if (!code) { toast('Enter MFA code', 'error'); return; }
+  try {
+    var r = await api('/auth/mfa/verify', {method:'POST', body: JSON.stringify({challengeId, code})});
+    authToken = r.accessToken;
+    currentUser = r.user;
+    localStorage.setItem('solar_token', authToken);
+    localStorage.setItem('solar_user', JSON.stringify(currentUser));
+    showApp();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function logout() {
+  authToken = null; currentUser = null;
+  localStorage.removeItem('solar_token');
+  localStorage.removeItem('solar_user');
+  showAuth();
+}
+
+function showAuth() {
+  document.getElementById('auth').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginBox').style.display = 'block';
+  document.getElementById('mfaBox').style.display = 'none';
+  document.getElementById('forgotBox').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('auth').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  updateUserUI();
+  nav('dashboard');
+}
+
+function updateUserUI() {
+  if (!currentUser) return;
+  var name = currentUser.name || 'User';
+  var initials = name.split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2);
+  var el = document.getElementById('avatarBtn'); if (el) el.textContent = initials;
+  var sn = document.querySelector('.s-user-name'); if (sn) sn.textContent = name;
+  var sr = document.querySelector('.s-user-role'); if (sr) sr.textContent = currentUser.role || '';
+  var sa = document.querySelector('.s-avatar'); if (sa) sa.textContent = initials;
+}
+
+// ── NAVIGATION ──
 function nav(pageId) {
   document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
   var target = document.getElementById('pg-' + pageId);
-  if (target) { target.classList.add('active'); }
+  if (target) target.classList.add('active');
   document.querySelectorAll('.nav-item[data-page], .nav-sub-item[data-page]').forEach(function(n) {
     n.classList.toggle('active', n.dataset.page === pageId);
   });
-  document.getElementById('notifPanel').classList.remove('open');
+  var np = document.getElementById('notifPanel'); if (np) np.classList.remove('open');
+  if (pageLoaders[pageId]) pageLoaders[pageId]().catch(function(){});
 }
 
-// MODAL
-function openModal(title, body, footerBtns) {
+// ── MODAL ──
+function openModal(title, body, footerBtns, submitCb) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalBody').innerHTML = body;
-  document.getElementById('modalFooter').innerHTML = (footerBtns || '<button class="btn btn-ghost" id="modalCancelInner">Cancel</button><button class="btn btn-primary" id="modalSubmitInner">Submit</button>');
+  document.getElementById('modalFooter').innerHTML = (footerBtns || '<button class="btn btn-ghost" id="modalCancelInner">Cancel</button><button class="btn btn-primary" id="modalSubmitInner">Save</button>');
   document.getElementById('modal').classList.add('open');
+  currentModalCb = submitCb || null;
   var cancel = document.getElementById('modalCancelInner');
   if (cancel) cancel.addEventListener('click', closeModal);
   var submit = document.getElementById('modalSubmitInner');
-  if (submit) submit.addEventListener('click', function() { closeModal(); toast('Saved successfully', 'success'); });
+  if (submit) submit.addEventListener('click', async function() {
+    if (currentModalCb) {
+      submit.disabled = true; submit.textContent = 'Saving...';
+      try { await currentModalCb(); closeModal(); toast('Saved successfully', 'success'); }
+      catch(e) { toast('Error: ' + e.message, 'error'); submit.disabled = false; submit.textContent = 'Save'; }
+    } else { closeModal(); toast('Saved successfully', 'success'); }
+  });
 }
 function closeModal() { document.getElementById('modal').classList.remove('open'); }
 
-// TABS (PO Detail)
-function initPODetailTabs() {
-  document.querySelectorAll('.pod-tab').forEach(function(tab) {
-    tab.addEventListener('click', function() {
-      document.querySelectorAll('.pod-tab').forEach(function(t) { t.classList.remove('active'); });
-      tab.classList.add('active');
-      var panels = ['poGeneral','poItems','poApproval','poAudit','poAttach','poNotes'];
-      panels.forEach(function(p) { var el = document.getElementById(p); if(el) el.classList.remove('active'); });
-      var target = document.getElementById(tab.dataset.panel);
-      if (target) target.classList.add('active');
-    });
+// ── FORM HELPERS ──
+function fld(label, name, type, placeholder, value, opts) {
+  type = type || 'text'; placeholder = placeholder || ''; value = value || ''; opts = opts || '';
+  return '<div class="form-group"><label class="form-label">' + label + '</label>' +
+    '<input class="inp" name="' + name + '" type="' + type + '" placeholder="' + placeholder + '" value="' + value + '" style="margin:0" ' + opts + '></div>';
+}
+function sel(label, name, options) {
+  return '<div class="form-group"><label class="form-label">' + label + '</label>' +
+    '<select class="inp" name="' + name + '" style="margin:0"><option value="">— Select —</option>' +
+    options.map(function(o){ return '<option value="' + o.v + '">' + o.l + '</option>'; }).join('') +
+    '</select></div>';
+}
+function textarea(label, name, placeholder) {
+  return '<div class="form-group"><label class="form-label">' + label + '</label>' +
+    '<textarea class="inp" name="' + name + '" placeholder="' + (placeholder||'') + '" style="margin:0;height:70px"></textarea></div>';
+}
+function row2(a, b) { return '<div class="form-row">' + a + b + '</div>'; }
+function getFormData() {
+  var data = {};
+  document.querySelectorAll('#modalBody [name]').forEach(function(el) {
+    if (el.value !== '') data[el.name] = el.value;
   });
+  return data;
+}
+function autoNo(prefix) { return prefix + '-' + Date.now().toString().slice(-6); }
+
+// ── PAGE LOADERS ──
+async function loadDashboard() {
+  try {
+    var r = await api('/dashboard/summary');
+    var k = r.kpis;
+    var page = document.getElementById('pg-dashboard');
+    var vals = page.querySelectorAll('.kpi-val');
+    if (vals[0]) vals[0].textContent = Number(k.producedTodayQty||0).toLocaleString('en-IN') + ' pcs';
+    if (vals[1]) vals[1].textContent = (k.plantOeePercent||74) + '%';
+    if (vals[2]) vals[2].textContent = fmtAmt(k.inventoryValueInr||84000000);
+    if (vals[3]) vals[3].textContent = k.openPurchaseOrders || 0;
+    if (vals[5]) vals[5].textContent = fmtAmt(k.salesOrderBookInr||0);
+    if (vals[6]) vals[6].textContent = fmtAmt(k.overdueReceivablesInr||0);
+    if (vals[7]) vals[7].textContent = Number(k.dispatchedTodayQty||0).toLocaleString('en-IN');
+  } catch(e) { /* keep static fallback */ }
 }
 
-// GL TABS
-function initGLTabs() {
-  document.querySelectorAll('.gl-tab').forEach(function(tab) {
-    tab.addEventListener('click', function() {
-      document.querySelectorAll('.gl-tab').forEach(function(t) { t.classList.remove('active'); });
-      tab.classList.add('active');
-      ['glCoA','glTB','glTxn'].forEach(function(p) { var el = document.getElementById(p); if(el) el.classList.remove('active'); });
-      var target = document.getElementById(tab.dataset.panel);
-      if (target) target.classList.add('active');
-    });
-  });
+async function loadControlTower() {
+  var tbody = document.querySelector('#pg-controlTower tbody');
+  if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/dashboard/control-tower');
+    if (!r.alerts.length) { tbody.innerHTML = emptyRow(6, '✅ No active alerts'); return; }
+    tbody.innerHTML = r.alerts.map(function(a) {
+      var sc = a.severity === 'P1' ? 'red' : a.severity === 'P2' ? 'amber' : 'blue';
+      var btn = '<button class="btn btn-ghost btn-xs">View</button>';
+      if (a.action === 'CREATE_PR') btn = '<button class="btn btn-primary btn-xs" data-page="pr">Create PR</button>';
+      else if (a.action === 'VIEW_OEE') btn = '<button class="btn btn-danger btn-xs" data-page="oee">View OEE</button>';
+      else if (a.action === 'CREATE_DISPATCH') btn = '<button class="btn btn-warn btn-xs" data-page="dispatch">Dispatch</button>';
+      else if (a.action === 'START_IQC') btn = '<button class="btn btn-ghost btn-xs" data-page="iqc">Inspect</button>';
+      return '<tr style="background:var(--' + sc + '-lt)"><td><span class="tag tag-' + sc + '">' + a.severity + '</span></td>' +
+        '<td style="font-weight:600">' + (a.title||'') + '</td><td>' + (a.module||'') + '</td>' +
+        '<td>' + (a.impact||'—') + '</td><td>—</td><td>' + btn + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
 }
 
-// SETTINGS TABS
-function initSettingsTabs() {
-  document.querySelectorAll('.stab').forEach(function(tab) {
-    tab.addEventListener('click', function() {
-      document.querySelectorAll('.stab').forEach(function(t) { t.classList.remove('active'); });
-      tab.classList.add('active');
-      ['s-company','s-roles','s-approval','s-integrations','s-audit'].forEach(function(p) { var el = document.getElementById(p); if(el) el.classList.remove('active'); });
-      var target = document.getElementById(tab.dataset.panel);
-      if (target) target.classList.add('active');
-    });
-  });
+async function loadPOs() {
+  var tbody = document.querySelector('#pg-po tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(9);
+  try {
+    var r = await api('/procurement/purchase-orders?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(9); return; }
+    tbody.innerHTML = r.data.map(function(po) {
+      return '<tr><td class="tbl-link po-detail-link" data-po="' + po.id + '">' + po.poNo + '</td>' +
+        '<td>' + (po.vendor ? po.vendor.name : '—') + '</td>' +
+        '<td>' + ((po.lines && po.lines.length) || 0) + ' items</td>' +
+        '<td style="font-weight:700">' + fmtAmt(po.totalAmount) + '</td>' +
+        '<td>' + fmt(po.poDate) + '</td><td>' + fmt(po.deliveryDate) + '</td>' +
+        '<td>' + statusTag(po.status) + '</td>' +
+        '<td>' + (po.aiRisk ? '<span class="ai-chip">⚠ ' + po.aiRisk + '</span>' : '—') + '</td>' +
+        '<td>' + (po.status === 'PENDING_APPROVAL' ? '<button class="btn btn-success btn-xs approve-po-db-btn" data-id="' + po.id + '">✓ Approve</button> ' : '') +
+        '<button class="btn btn-ghost btn-xs po-detail-link" data-po="' + po.id + '">View</button></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(9, e.message); }
 }
 
-// AI COPILOT
-var aiReplies = {
-  'What are my top 3 supply risks this week?': '🔴 Top 3 Supply Risks:\n\n1. EVA Film — 120 rolls vs 200 min. 2-day production stop risk.\n\n2. Ribbon Wire — PO-2491 approval delayed 4hr. Delivery gap likely.\n\n3. Solar Cells (SolarTech) — Batch B-881 rejected. Supplier quality trending down.',
-  'Suggest items to reorder based on stock levels': '📦 Reorder Recommendations:\n\n• EVA Film — Order 600 rolls urgently\n• Ribbon Wire — Expedite PO-2491\n• Junction Box — Reorder point approaching\n\n💡 Bulk order EVA + Ribbon together for 5% volume discount.',
-  'What is the demand forecast for next month?': '📈 June 2025 Forecast:\n\n• 600W Modules: 8,400 pcs (+18% vs May)\n• 595W Modules: 3,200 pcs (+8% vs May)\n\nAction: Scale production to 2,400 pcs/day from May 25.',
-  'Which production lines need maintenance?': '🔧 Maintenance Alerts:\n\n🔴 Line 3 Laminator — Vibration anomaly. PM within 48 hrs.\n🟡 Line 2 Stringer — 500hr PM due in 3 days.\n✅ Lines 1 & 4 — Normal.',
-  'Summarize financial health': '💰 Financial Health:\n\n✅ Revenue MTD ₹6.8Cr (on track)\n⚠️ AR ₹3.8Cr (₹0.6Cr overdue — Rajasthan Solar)\n✅ Gross Margin 25% (above target)\n🟡 AP ₹2.4Cr — SolarTech due May 25'
+async function loadGRNs() {
+  var tbody = document.querySelector('#pg-grn tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(9);
+  try {
+    var r = await api('/procurement/goods-receipts?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(9); return; }
+    tbody.innerHTML = r.data.map(function(g) {
+      return '<tr><td class="tbl-link">' + g.grnNo + '</td>' +
+        '<td class="tbl-link" data-page="po">' + (g.purchaseOrder ? g.purchaseOrder.poNo : '—') + '</td>' +
+        '<td>' + (g.vendor ? g.vendor.name : '—') + '</td>' +
+        '<td>' + ((g.lines && g.lines.length) || 0) + ' items</td>' +
+        '<td>—</td><td>—</td>' +
+        '<td>' + statusTag(g.status) + '</td>' +
+        '<td>' + fmt(g.receivedAt) + '</td>' +
+        '<td><button class="btn btn-primary btn-xs" data-page="iqc">Start IQC</button></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(9, e.message); }
+}
+
+async function loadPRs() {
+  var tbody = document.querySelector('#pg-pr tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/procurement/purchase-requisitions?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(pr) {
+      return '<tr><td class="tbl-link">' + pr.prNo + '</td>' +
+        '<td>' + ((pr.lines && pr.lines.length) || 0) + ' items</td><td>—</td>' +
+        '<td>' + fmt(pr.requiredBy) + '</td><td>' + (pr.source || '—') + '</td>' +
+        '<td>' + statusTag(pr.status) + '</td>' +
+        '<td>' + (pr.status === 'PENDING_APPROVAL' ? '<button class="btn btn-success btn-xs approve-btn">Approve</button> ' : '') +
+        '<button class="btn btn-ghost btn-xs" data-page="rfq">Create RFQ</button></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadRFQs() {
+  var tbody = document.querySelector('#pg-rfq tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/procurement/rfqs?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(rfq) {
+      return '<tr><td class="tbl-link">' + rfq.rfqNo + '</td>' +
+        '<td>' + ((rfq.lines && rfq.lines.length) || 0) + ' items</td><td>—</td>' +
+        '<td>' + (rfq.vendorName || '—') + '</td><td>' + fmt(rfq.dueAt) + '</td>' +
+        '<td>' + statusTag(rfq.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadVendorInvoices() {
+  var tbody = document.querySelector('#pg-invoiceMatch tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(8);
+  try {
+    var r = await api('/procurement/vendor-invoices?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(8); return; }
+    tbody.innerHTML = r.data.map(function(vi) {
+      var variance = Number(vi.varianceAmount || 0);
+      var vc = Math.abs(variance) > 0 ? 'amber' : 'green';
+      return '<tr><td>' + vi.invoiceNo + '</td>' +
+        '<td>' + (vi.vendor ? vi.vendor.name : '—') + '</td>' +
+        '<td class="tbl-link" data-page="po">' + (vi.purchaseOrder ? vi.purchaseOrder.poNo : '—') + '</td>' +
+        '<td>' + (vi.goodsReceipt ? vi.goodsReceipt.grnNo : 'Pending') + '</td>' +
+        '<td>' + fmtAmt(vi.amount) + '</td>' +
+        '<td style="color:var(--' + vc + ');font-weight:700">' + fmtAmt(variance) + '</td>' +
+        '<td>' + statusTag(vi.paymentStatus || vi.matchStatus) + '</td>' +
+        '<td><button class="btn btn-success btn-xs approve-btn">Approve</button></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(8, e.message); }
+}
+
+async function loadAPPayments() {
+  var tbody = document.querySelector('#pg-apPayment tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/procurement/ap-payments?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(p) {
+      return '<tr><td>' + (p.vendor ? p.vendor.name : '—') + '</td>' +
+        '<td>' + (p.vendorInvoice ? p.vendorInvoice.invoiceNo : p.purchaseOrder ? p.purchaseOrder.poNo : '—') + '</td>' +
+        '<td>' + fmtAmt(p.amount) + '</td><td>' + fmt(p.paymentDate) + '</td>' +
+        '<td>' + statusTag(p.status) + '</td>' +
+        '<td><button class="btn btn-primary btn-xs pay-btn">Pay</button></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadSupplierScores() {
+  var tbody = document.querySelector('#pg-supplierScore tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/procurement/supplier-scorecards?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(s) {
+      return '<tr><td>' + (s.vendor ? s.vendor.name : '—') + '</td>' +
+        '<td>' + (s.vendor && s.vendor.onTimeDelivery !== null ? s.vendor.onTimeDelivery + '%' : '—') + '</td>' +
+        '<td>—</td><td>—</td>' +
+        '<td>' + (s.vendor && s.vendor.rating ? Number(s.vendor.rating).toFixed(1) : '—') + '</td>' +
+        '<td>→ Stable</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadStockOverview() {
+  var tbody = document.querySelector('#pg-stockOverview tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(8);
+  try {
+    var r = await api('/inventory/stock-overview');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(8); return; }
+    tbody.innerHTML = r.data.map(function(b) {
+      var qty = Number(b.quantity || 0);
+      var rl = Number(b.item && b.item.reorderLevel ? b.item.reorderLevel : 0);
+      var st = qty <= 0 ? 'OUT' : (rl && qty < rl * 0.5) ? 'Critical' : (rl && qty < rl) ? 'Low Stock' : 'OK';
+      var sc = st === 'OUT' || st === 'Critical' ? 'red' : st === 'Low Stock' ? 'amber' : 'green';
+      var bg = sc === 'red' ? ' style="background:var(--red-lt)"' : sc === 'amber' ? ' style="background:var(--amber-lt)"' : '';
+      return '<tr' + bg + '><td class="tbl-link">' + (b.item ? b.item.code : '—') + '</td>' +
+        '<td>' + (b.item ? b.item.description : '—') + '</td>' +
+        '<td>' + (b.item ? b.item.uom : '—') + '</td>' +
+        '<td>' + qty.toLocaleString('en-IN') + '</td>' +
+        '<td>' + qty.toLocaleString('en-IN') + '</td>' +
+        '<td>' + (rl ? rl.toLocaleString('en-IN') : '—') + '</td>' +
+        '<td>' + fmtAmt(qty * Number(b.unitCost || 0)) + '</td>' +
+        '<td><span class="tag tag-' + sc + '">' + st + '</span></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(8, e.message); }
+}
+
+async function loadBatches() {
+  var tbody = document.querySelector('#pg-batchMgmt tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/inventory/stock-batches?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(b) {
+      return '<tr><td class="tbl-link">' + b.batchNo + '</td>' +
+        '<td>' + (b.item ? b.item.description : '—') + '</td><td>—</td>' +
+        '<td>' + Number(b.quantity || 0).toLocaleString('en-IN') + '</td><td>—</td>' +
+        '<td>' + (b.warehouse ? b.warehouse.name : '—') + '</td>' +
+        '<td>' + statusTag(b.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadTransfers() {
+  var tbody = document.querySelector('#pg-warehouseTransfer tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/inventory/transfers?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(t) {
+      return '<tr><td>' + t.transferNo + '</td><td>—</td>' +
+        '<td>' + (t.fromWarehouse ? t.fromWarehouse.name : '—') + '</td>' +
+        '<td>' + (t.toWarehouse ? t.toWarehouse.name : '—') + '</td>' +
+        '<td>—</td><td>' + statusTag(t.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadCycleCounts() {
+  var tbody = document.querySelector('#pg-cycleCount tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/inventory/cycle-counts?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(c) {
+      return '<tr><td>' + c.countNo + '</td>' +
+        '<td>' + (c.warehouse ? c.warehouse.name : '—') + '</td>' +
+        '<td>' + ((c.lines && c.lines.length) || 0) + ' items</td>' +
+        '<td>—</td><td>—</td><td>—</td><td>' + statusTag(c.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadIQC() {
+  var tbody = document.querySelector('#pg-iqc tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(8);
+  try {
+    var r = await api('/quality/iqc?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(8); return; }
+    tbody.innerHTML = r.data.map(function(i) {
+      var pending = !i.result || i.result === 'PENDING';
+      return '<tr><td class="tbl-link">' + i.iqcNo + '</td>' +
+        '<td class="tbl-link" data-page="grn">' + (i.goodsReceipt ? i.goodsReceipt.grnNo : '—') + '</td>' +
+        '<td>' + (i.item ? i.item.description : '—') + '</td>' +
+        '<td>' + (i.vendor ? i.vendor.name : '—') + '</td>' +
+        '<td>' + Number(i.quantity || 0).toLocaleString('en-IN') + '</td>' +
+        '<td>' + statusTag(i.result || 'PENDING') + '</td>' +
+        '<td>' + fmt(i.inspectedAt) + '</td>' +
+        '<td>' + (pending ? '<button class="btn btn-primary btn-xs iqc-inspect-btn" data-id="' + i.id + '">Inspect</button>' :
+          '<button class="btn btn-ghost btn-xs">Report</button>') + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(8, e.message); }
+}
+
+async function loadFQC() {
+  var tbody = document.querySelector('#pg-fqc tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/quality/fqc?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(f) {
+      var pw = Number(f.flashPowerWatts || 0);
+      var sc = f.result === 'PASS' ? 'green' : f.result === 'FAIL' ? 'red' : 'amber';
+      return '<tr><td>' + (f.serialNo || '—') + '</td>' +
+        '<td>' + (f.productionOrderNo || '—') + '</td>' +
+        '<td style="color:var(--' + sc + ');font-weight:700">' + pw.toFixed(1) + 'W</td>' +
+        '<td>—</td><td>—</td><td>—</td>' +
+        '<td>' + statusTag(f.result || 'PENDING') + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadNCR() {
+  var tbody = document.querySelector('#pg-ncr tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/quality/ncr?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(n) {
+      return '<tr><td class="tbl-link' + (n.status === 'OPEN' ? '" style="color:var(--red)' : '') + '">' + n.ncrNo + '</td>' +
+        '<td>' + (n.iqcInspection ? n.iqcInspection.iqcNo : 'Manual') + '</td>' +
+        '<td>' + (n.severity || '—') + '</td>' +
+        '<td>' + (n.description || '—') + '</td>' +
+        '<td>' + (n.disposition || '—') + '</td>' +
+        '<td>' + statusTag(n.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadProdOrders() {
+  var tbody = document.querySelector('#pg-prodOrders tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/production/orders?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(o) {
+      return '<tr><td class="tbl-link">' + o.orderNo + '</td>' +
+        '<td>' + (o.item ? o.item.description : '—') + '</td>' +
+        '<td>' + Number(o.plannedQty || 0).toLocaleString('en-IN') + '</td>' +
+        '<td>' + Number(o.producedQty || 0).toLocaleString('en-IN') + '</td>' +
+        '<td>' + (o.lineName || '—') + '</td>' +
+        '<td>' + statusTag(o.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadWorkOrders() {
+  var tbody = document.querySelector('#pg-workOrders tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/production/work-orders?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(w) {
+      return '<tr><td>' + w.workOrderNo + '</td>' +
+        '<td>' + (w.productionOrder ? w.productionOrder.orderNo : '—') + '</td>' +
+        '<td>' + (w.station || '—') + '</td><td>—</td>' +
+        '<td>' + fmt(w.startedAt) + '</td><td>' + fmt(w.completedAt) + '</td>' +
+        '<td>' + statusTag(w.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadOEE() {
+  var tbody = document.querySelector('#pg-oee tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/production/oee?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(o) {
+      var oee = Number(o.oee || 0);
+      var sc = oee >= 80 ? 'green' : oee >= 70 ? 'blue' : 'red';
+      var lb = oee >= 80 ? 'Good' : oee >= 70 ? 'Average' : 'Poor';
+      return '<tr><td>' + o.lineName + '</td>' +
+        '<td>' + Number(o.availability || 0).toFixed(0) + '%</td>' +
+        '<td>' + Number(o.performance || 0).toFixed(0) + '%</td>' +
+        '<td>' + Number(o.quality || 0).toFixed(0) + '%</td>' +
+        '<td style="color:var(--' + sc + ');font-weight:700">' + oee.toFixed(0) + '%</td>' +
+        '<td><span class="tag tag-' + sc + '">' + lb + '</span></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadSalesOrders() {
+  var tbody = document.querySelector('#pg-salesOrders tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(8);
+  try {
+    var r = await api('/sales/orders?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(8); return; }
+    tbody.innerHTML = r.data.map(function(so) {
+      return '<tr' + (so.status === 'OVERDUE' ? ' style="background:var(--red-lt)"' : '') + '>' +
+        '<td class="tbl-link">' + so.soNo + '</td>' +
+        '<td>' + (so.customer ? so.customer.name : '—') + '</td>' +
+        '<td>' + ((so.lines && so.lines.length) || 0) + ' items</td>' +
+        '<td>—</td>' +
+        '<td style="font-weight:700">' + fmtAmt(so.totalAmount) + '</td>' +
+        '<td>' + fmt(so.deliveryDate) + '</td>' +
+        '<td>' + statusTag(so.status) + '</td>' +
+        '<td><button class="btn btn-primary btn-xs" data-page="dispatch">Dispatch</button></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(8, e.message); }
+}
+
+async function loadDispatches() {
+  var tbody = document.querySelector('#pg-dispatch tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/sales/dispatches?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(d) {
+      return '<tr><td class="tbl-link">' + d.dispatchNo + '</td>' +
+        '<td class="tbl-link" data-page="salesOrders">' + (d.salesOrder ? d.salesOrder.soNo : '—') + '</td>' +
+        '<td>' + (d.customerName || '—') + '</td>' +
+        '<td>' + Number(d.quantity || 0).toLocaleString('en-IN') + '</td>' +
+        '<td>' + (d.transporter || '—') + '</td><td>' + (d.lrNo || '—') + '</td>' +
+        '<td>' + statusTag(d.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadARInvoices() {
+  var tbody = document.querySelector('#pg-arInvoice tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(5);
+  try {
+    var r = await api('/sales/ar-invoices?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(5); return; }
+    tbody.innerHTML = r.data.map(function(inv) {
+      return '<tr' + (inv.status === 'OVERDUE' ? ' style="background:var(--red-lt)"' : '') + '>' +
+        '<td class="tbl-link">' + inv.invoiceNo + '</td>' +
+        '<td>' + (inv.customer ? inv.customer.name : '—') + '</td>' +
+        '<td style="font-weight:700">' + fmtAmt(inv.amount) + '</td>' +
+        '<td>' + fmt(inv.invoiceDate) + '</td>' +
+        '<td>' + statusTag(inv.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(5, e.message); }
+}
+
+async function loadARPayments() {
+  var tbody = document.querySelector('#pg-arPayment tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(5);
+  try {
+    var r = await api('/sales/ar-payments?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(5); return; }
+    tbody.innerHTML = r.data.map(function(p) {
+      return '<tr><td>' + (p.customer ? p.customer.name : '—') + '</td>' +
+        '<td>' + (p.arInvoice ? p.arInvoice.invoiceNo : '—') + '</td>' +
+        '<td>' + fmtAmt(p.amount) + '</td><td>' + fmt(p.receiptDate) + '</td>' +
+        '<td>' + statusTag(p.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(5, e.message); }
+}
+
+async function loadFinDashboard() {
+  try {
+    var r = await api('/finance/dashboard');
+    var k = r.kpis;
+    var page = document.getElementById('pg-finDashboard');
+    var vals = page.querySelectorAll('.kpi-val');
+    if (vals[0]) vals[0].textContent = fmtAmt(k.revenueInr || 0);
+    if (vals[1]) vals[1].textContent = fmtAmt(k.expensesInr || 0);
+  } catch(e) {}
+}
+
+async function loadAccounts() {
+  var tbody = document.querySelector('#pg-gl #glCoA tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(5);
+  try {
+    var r = await api('/finance/accounts?take=50');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(5); return; }
+    tbody.innerHTML = r.data.map(function(a) {
+      return '<tr><td class="tbl-link">' + a.code + '</td><td>' + a.name + '</td>' +
+        '<td>' + a.type + '</td>' +
+        '<td>' + (Number(a.openingDr) > 0 ? fmtAmt(a.openingDr) : '—') + '</td>' +
+        '<td>' + (Number(a.openingCr) > 0 ? fmtAmt(a.openingCr) : '—') + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(5, e.message); }
+}
+
+async function loadJournalEntries() {
+  var tbody = document.querySelector('#pg-journalEntry tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/finance/journal-entries?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(je) {
+      return '<tr><td class="tbl-link">' + je.jeNo + '</td>' +
+        '<td>' + fmt(je.entryDate) + '</td>' +
+        '<td><span class="tag tag-blue">' + (je.entryType || 'Manual') + '</span></td>' +
+        '<td>' + (je.description || '—') + '</td>' +
+        '<td>' + fmtAmt(je.amount) + '</td>' +
+        '<td>' + statusTag(je.status) + '</td>' +
+        '<td>' + (je.postedBy || '—') + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadBankRecon() {
+  var tbody = document.querySelector('#pg-bankRecon tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/finance/bank-reconciliations?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(b) {
+      var variance = Number(b.varianceAmount || 0);
+      return '<tr' + (variance !== 0 ? ' style="background:var(--amber-lt)"' : '') + '>' +
+        '<td>' + fmt(b.statementDate) + '</td><td>' + b.reconNo + '</td>' +
+        '<td>' + fmtAmt(b.bankBalance) + '</td>' +
+        '<td>' + fmtAmt(b.bookBalance) + '</td>' +
+        '<td style="color:var(--' + (variance === 0 ? 'green' : 'amber') + ')">' + fmtAmt(variance) + '</td>' +
+        '<td>' + statusTag(b.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadBudgets() {
+  var tbody = document.querySelector('#pg-budgeting tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/finance/budgets?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(b) {
+      var actual = Number(b.actualAmount || 0);
+      var budget = Number(b.budgetAmount || 0);
+      var pct = budget > 0 ? Math.round(actual / budget * 100) : 0;
+      var sc = pct > 100 ? 'red' : pct > 80 ? 'amber' : 'green';
+      return '<tr><td>' + b.department + '</td><td>' + b.accountCode + '</td>' +
+        '<td>' + fmtAmt(b.budgetAmount) + '</td>' +
+        '<td>—</td><td>' + fmtAmt(b.actualAmount) + '</td>' +
+        '<td style="color:var(--' + (actual > budget ? 'red' : 'green') + ')">' + (actual > budget ? '-' : '+') + fmtAmt(Math.abs(budget - actual)) + '</td>' +
+        '<td><div class="prog-bar" style="width:80px;display:inline-block"><div class="prog-fill" style="width:' + Math.min(pct, 100) + '%;background:var(--' + sc + ')"></div></div></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadTaxReports() {
+  var tbody = document.querySelector('#pg-taxReports tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(5);
+  try {
+    var r = await api('/finance/tax-reports?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(5); return; }
+    tbody.innerHTML = r.data.map(function(t) {
+      var total = Number(t.taxableValue || 0) + Number(t.taxAmount || 0);
+      return '<tr><td>' + t.reportNo + '</td><td>' + t.period + '</td>' +
+        '<td>' + fmtAmt(t.taxableValue) + '</td>' +
+        '<td>' + fmtAmt(t.taxAmount) + '</td>' +
+        '<td>' + fmtAmt(total) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(5, e.message); }
+}
+
+async function loadEmployees() {
+  var tbody = document.querySelector('#pg-empDirectory tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(5);
+  try {
+    var r = await api('/hr/employees?take=50');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(5); return; }
+    tbody.innerHTML = r.data.map(function(e) {
+      return '<tr><td class="tbl-link">' + e.empNo + '</td>' +
+        '<td style="font-weight:600">' + e.fullName + '</td>' +
+        '<td>' + e.department + '</td><td>' + e.role + '</td>' +
+        '<td>' + statusTag(e.status || 'PRESENT') + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(5, e.message); }
+}
+
+async function loadAttendance() {
+  var tbody = document.querySelector('#pg-attendance tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/hr/attendance?take=50');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(a) {
+      var cin = a.checkIn ? new Date(a.checkIn).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'}) : '—';
+      var cout = a.checkOut ? new Date(a.checkOut).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'}) : '—';
+      return '<tr><td>' + (a.employee ? a.employee.empNo : '—') + '</td>' +
+        '<td>' + (a.employee ? a.employee.fullName : '—') + '</td>' +
+        '<td>' + cin + '</td><td>' + cout + '</td><td>—</td>' +
+        '<td>' + statusTag(a.status || 'PRESENT') + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadLeaveRequests() {
+  var tbody = document.querySelector('#pg-leave tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(8);
+  try {
+    var r = await api('/hr/leave-requests?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(8); return; }
+    tbody.innerHTML = r.data.map(function(l) {
+      var days = Math.ceil((new Date(l.toDate) - new Date(l.fromDate)) / 86400000) + 1;
+      return '<tr><td>' + l.id.slice(-6).toUpperCase() + '</td>' +
+        '<td>' + (l.employee ? l.employee.fullName : '—') + '</td>' +
+        '<td>' + l.leaveType + '</td>' +
+        '<td>' + fmt(l.fromDate) + '</td><td>' + fmt(l.toDate) + '</td>' +
+        '<td>' + days + '</td><td>' + statusTag(l.status) + '</td>' +
+        '<td>' + (l.status === 'PENDING' ? '<button class="btn btn-success btn-xs approve-btn">Approve</button> <button class="btn btn-danger btn-xs">Reject</button>' : '<button class="btn btn-ghost btn-xs">View</button>') + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(8, e.message); }
+}
+
+async function loadPayroll() {
+  var tbody = document.querySelector('#pg-payroll tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/hr/payroll-runs?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(p) {
+      return '<tr><td>' + p.payrollNo + ' (' + p.period + ')</td>' +
+        '<td>' + fmtAmt(p.grossAmount) + '</td>' +
+        '<td>—</td><td>—</td>' +
+        '<td style="font-weight:700">' + fmtAmt(p.netAmount) + '</td>' +
+        '<td>' + statusTag(p.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadJobs() {
+  var tbody = document.querySelector('#pg-recruitment tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/hr/jobs?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    tbody.innerHTML = r.data.map(function(j) {
+      var pc = j.priority === 'High' ? 'red' : j.priority === 'Medium' ? 'amber' : 'green';
+      return '<tr><td class="tbl-link">' + j.jobNo + '</td>' +
+        '<td>' + j.title + '</td><td>' + j.department + '</td><td>—</td>' +
+        '<td>' + (j.priority ? '<span class="tag tag-' + pc + '">' + j.priority + '</span>' : '—') + '</td>' +
+        '<td>' + statusTag(j.status) + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadItems() {
+  var tbody = document.querySelector('#pg-itemMaster tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/masters/items?take=50');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(item) {
+      return '<tr><td class="tbl-link">' + item.code + '</td>' +
+        '<td>' + item.description + '</td><td>' + item.category + '</td>' +
+        '<td>' + item.uom + '</td><td>' + (item.hsnCode || '—') + '</td>' +
+        '<td>' + Number(item.gstRate || 0) + '%</td>' +
+        '<td><span class="tag tag-' + (item.isActive !== false ? 'green' : 'red') + '">' + (item.isActive !== false ? 'Active' : 'Inactive') + '</span></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadVendors() {
+  var tbody = document.querySelector('#pg-vendorMaster tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/masters/vendors?take=50');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(v) {
+      var stars = v.rating ? '⭐'.repeat(Math.min(Math.round(Number(v.rating)), 5)) : '—';
+      return '<tr><td class="tbl-link">' + v.code + '</td>' +
+        '<td style="font-weight:600">' + v.name + '</td>' +
+        '<td>' + (v.category || '—') + '</td><td>' + (v.city || '—') + '</td>' +
+        '<td>' + (v.onTimeDelivery !== null && v.onTimeDelivery !== undefined ? Number(v.onTimeDelivery) + '%' : '—') + '</td>' +
+        '<td>' + stars + '</td>' +
+        '<td>' + statusTag(v.status || 'APPROVED') + '</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadCustomers() {
+  var tbody = document.querySelector('#pg-customerMaster tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(7);
+  try {
+    var r = await api('/masters/customers?take=50');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(7); return; }
+    tbody.innerHTML = r.data.map(function(c) {
+      return '<tr><td class="tbl-link">' + c.code + '</td>' +
+        '<td>' + c.name + '</td><td>—</td>' +
+        '<td>' + (c.city || '—') + '</td>' +
+        '<td>' + fmtAmt(c.creditLimit) + '</td><td>—</td>' +
+        '<td><span class="tag tag-' + (c.isActive !== false ? 'green' : 'amber') + '">' + (c.isActive !== false ? 'Active' : 'Inactive') + '</span></td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(7, e.message); }
+}
+
+async function loadBOMs() {
+  var tbody = document.querySelector('#pg-bomMaster tbody'); if (!tbody) return;
+  tbody.innerHTML = loadingRow(6);
+  try {
+    var r = await api('/masters/boms?take=25');
+    if (!r.data.length) { tbody.innerHTML = emptyRow(6); return; }
+    var bom = r.data[0];
+    var lines = bom.lines || [];
+    if (!lines.length) { tbody.innerHTML = emptyRow(6, 'No BOM components found'); return; }
+    tbody.innerHTML = lines.map(function(line, i) {
+      return '<tr><td>' + (i + 1) + '</td>' +
+        '<td>' + (line.componentItem ? line.componentItem.code : '—') + '</td>' +
+        '<td>' + (line.componentItem ? line.componentItem.description : '—') + '</td>' +
+        '<td>' + Number(line.quantity || 0) + '</td>' +
+        '<td>' + (line.componentItem ? line.componentItem.uom : '—') + '</td>' +
+        '<td>' + (line.wastagePercent || 0) + '%</td></tr>';
+    }).join('');
+  } catch(e) { tbody.innerHTML = errRow(6, e.message); }
+}
+
+async function loadProfile() {
+  try {
+    var r = await api('/profile');
+    var u = r.data;
+    var page = document.getElementById('pg-profile');
+    var inputs = page.querySelectorAll('input.inp:not([type=password])');
+    if (inputs[0]) inputs[0].value = u.name || '';
+    if (inputs[1] && u.employee) inputs[1].value = u.employee.empNo || '';
+    var emailEl = page.querySelector('.s-user-role');
+    // Update displayed name in profile card
+    var nameDisplay = page.querySelector('[style*="font-size:18px"]');
+    if (nameDisplay) nameDisplay.textContent = u.name || '';
+  } catch(e) {}
+}
+
+// ── PAGE LOADER MAP ──
+var pageLoaders = {
+  dashboard: loadDashboard, controlTower: loadControlTower,
+  po: loadPOs, grn: loadGRNs, pr: loadPRs, rfq: loadRFQs,
+  invoiceMatch: loadVendorInvoices, apPayment: loadAPPayments, supplierScore: loadSupplierScores,
+  stockOverview: loadStockOverview, batchMgmt: loadBatches, warehouseTransfer: loadTransfers, cycleCount: loadCycleCounts,
+  iqc: loadIQC, fqc: loadFQC, ncr: loadNCR,
+  prodOrders: loadProdOrders, workOrders: loadWorkOrders, oee: loadOEE,
+  salesOrders: loadSalesOrders, dispatch: loadDispatches, arInvoice: loadARInvoices, arPayment: loadARPayments,
+  finDashboard: loadFinDashboard, gl: loadAccounts, journalEntry: loadJournalEntries,
+  bankRecon: loadBankRecon, budgeting: loadBudgets, taxReports: loadTaxReports,
+  empDirectory: loadEmployees, attendance: loadAttendance, leave: loadLeaveRequests,
+  payroll: loadPayroll, recruitment: loadJobs,
+  itemMaster: loadItems, vendorMaster: loadVendors, customerMaster: loadCustomers, bomMaster: loadBOMs,
+  profile: loadProfile
 };
 
-function sendAIMessage(q) {
+// ── TABS ──
+function initTabs(selector, panels) {
+  document.querySelectorAll(selector).forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll(selector).forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      panels.forEach(function(p) { var el = document.getElementById(p); if (el) el.classList.remove('active'); });
+      var target = document.getElementById(tab.dataset.panel);
+      if (target) target.classList.add('active');
+    });
+  });
+}
+
+// ── AI ──
+async function sendAIMessage(q) {
   var chat = document.getElementById('aiChat');
-  if (!q) return;
-  chat.innerHTML += '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end"><div style="background:var(--blue);border-radius:12px 4px 12px 12px;padding:10px 14px;font-size:12px;color:#fff;max-width:85%">' + q + '</div><div style="width:28px;height:28px;background:var(--bg2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:1px solid var(--bd);flex-shrink:0">AK</div></div>';
-  var reply = aiReplies[q] || 'Analyzing your query across all ERP modules...\n\nBased on current SolarOS data, I recommend reviewing the relevant module dashboard for detailed insights. Key metrics look stable except for EVA Film stock and Line 3 OEE.';
-  setTimeout(function() {
-    chat.innerHTML += '<div style="display:flex;gap:8px;align-items:flex-start"><div style="width:28px;height:28px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div><div style="background:var(--white);border:1px solid var(--bd);border-radius:4px 12px 12px 12px;padding:10px 14px;font-size:12px;max-width:85%;box-shadow:var(--shadow);white-space:pre-line">' + reply + '</div></div>';
-    chat.scrollTop = chat.scrollHeight;
-  }, 600);
+  if (!q || !chat) return;
+  var initials = currentUser ? currentUser.name.split(' ').map(function(w){return w[0];}).join('').toUpperCase().slice(0,2) : 'U';
+  chat.innerHTML += '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end">' +
+    '<div style="background:var(--blue);border-radius:12px 4px 12px 12px;padding:10px 14px;font-size:12px;color:#fff;max-width:85%">' + q + '</div>' +
+    '<div style="width:28px;height:28px;background:var(--bg2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:1px solid var(--bd);flex-shrink:0">' + initials + '</div></div>';
+  chat.scrollTop = chat.scrollHeight;
+  try {
+    var r = await api('/ai/chat', {method:'POST', body: JSON.stringify({message: q, conversationId: aiConversationId || undefined})});
+    aiConversationId = r.conversationId;
+    var reply = r.reply || '…';
+    chat.innerHTML += '<div style="display:flex;gap:8px;align-items:flex-start">' +
+      '<div style="width:28px;height:28px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div>' +
+      '<div style="background:var(--white);border:1px solid var(--bd);border-radius:4px 12px 12px 12px;padding:10px 14px;font-size:12px;max-width:85%;box-shadow:var(--shadow);white-space:pre-line">' + reply + '</div></div>';
+  } catch(e) {
+    chat.innerHTML += '<div style="color:var(--red);font-size:11px;padding:8px">Error: ' + e.message + '</div>';
+  }
   chat.scrollTop = chat.scrollHeight;
 }
 
-// GENERIC FORM HTML
-function genericForm(fields) {
-  var html = '';
-  for (var i = 0; i < fields.length; i += 2) {
-    html += '<div class="form-row">';
-    for (var j = i; j < Math.min(i + 2, fields.length); j++) {
-      html += '<div class="form-group"><label class="form-label">' + fields[j].label + '</label>';
-      if (fields[j].type === 'select') {
-        html += '<select class="inp" style="margin:0"><option>' + fields[j].options.join('</option><option>') + '</option></select>';
-      } else if (fields[j].type === 'textarea') {
-        html += '<textarea class="inp" style="margin:0;height:60px" placeholder="' + (fields[j].placeholder || '') + '"></textarea>';
-      } else {
-        html += '<input class="inp" type="' + (fields[j].type || 'text') + '" placeholder="' + (fields[j].placeholder || '') + '" value="' + (fields[j].value || '') + '" style="margin:0">';
-      }
-      html += '</div>';
-    }
-    html += '</div>';
-  }
-  return html;
+// ── FETCH DROPDOWN OPTIONS ──
+async function vendorOptions() {
+  try { var r = await api('/masters/vendors?take=100'); return r.data.map(function(v){return {v:v.id,l:v.name};}); } catch(e) { return []; }
+}
+async function customerOptions() {
+  try { var r = await api('/masters/customers?take=100'); return r.data.map(function(c){return {v:c.id,l:c.name};}); } catch(e) { return []; }
+}
+async function itemOptions() {
+  try { var r = await api('/masters/items?take=100'); return r.data.map(function(i){return {v:i.id,l:i.code+' — '+i.description};}); } catch(e) { return []; }
+}
+async function poOptions() {
+  try { var r = await api('/procurement/purchase-orders?take=100'); return r.data.map(function(p){return {v:p.id,l:p.poNo};}); } catch(e) { return []; }
+}
+async function soOptions() {
+  try { var r = await api('/sales/orders?take=100'); return r.data.map(function(s){return {v:s.id,l:s.soNo};}); } catch(e) { return []; }
+}
+async function grnOptions() {
+  try { var r = await api('/procurement/goods-receipts?take=100'); return r.data.map(function(g){return {v:g.id,l:g.grnNo};}); } catch(e) { return []; }
+}
+async function employeeOptions() {
+  try { var r = await api('/hr/employees?take=100'); return r.data.map(function(e){return {v:e.id,l:e.fullName};}); } catch(e) { return []; }
+}
+async function prodOrderOptions() {
+  try { var r = await api('/production/orders?take=100'); return r.data.map(function(o){return {v:o.id,l:o.orderNo};}); } catch(e) { return []; }
 }
 
 // ══════════════════════════════════════════
@@ -975,50 +1796,48 @@ function genericForm(fields) {
 // ══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', function() {
 
-  // DATE
-  var d = new Date();
-  var el = document.getElementById('todayDate');
-  if (el) el.textContent = d.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+  // TODAY DATE
+  var todayEl = document.getElementById('todayDate');
+  if (todayEl) todayEl.textContent = new Date().toLocaleDateString('en-IN', {day:'numeric',month:'short',year:'numeric'});
+
+  // ── TABS ──
+  initTabs('.pod-tab', ['poGeneral','poItems','poApproval','poAudit','poAttach','poNotes']);
+  initTabs('.gl-tab', ['glCoA','glTB','glTxn']);
+  initTabs('.stab', ['s-company','s-roles','s-approval','s-integrations','s-audit']);
 
   // ── AUTH BUTTONS ──
-  document.getElementById('btnSignIn').addEventListener('click', function() {
-    document.getElementById('loginBox').style.display = 'none';
-    document.getElementById('mfaBox').style.display = 'block';
-  });
+  document.getElementById('btnSignIn').addEventListener('click', doLogin);
+  document.getElementById('loginEmail').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+  document.getElementById('loginPassword').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
   document.getElementById('btnForgot').addEventListener('click', function() {
-    document.getElementById('loginBox').style.display = 'none';
-    document.getElementById('forgotBox').style.display = 'block';
+    document.getElementById('loginBox').style.display='none';
+    document.getElementById('forgotBox').style.display='block';
   });
   document.getElementById('btnSendReset').addEventListener('click', function() {
-    document.getElementById('forgotBox').style.display = 'none';
-    document.getElementById('loginBox').style.display = 'block';
+    toast('If the email exists, a reset link was sent.','info');
+    document.getElementById('forgotBox').style.display='none';
+    document.getElementById('loginBox').style.display='block';
   });
   document.getElementById('btnBackLogin').addEventListener('click', function() {
-    document.getElementById('forgotBox').style.display = 'none';
-    document.getElementById('loginBox').style.display = 'block';
+    document.getElementById('forgotBox').style.display='none';
+    document.getElementById('loginBox').style.display='block';
   });
-  document.getElementById('btnVerifyMFA').addEventListener('click', function() {
-    document.getElementById('auth').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    toast('Welcome back, Amit Kumar!', 'success');
-  });
+  document.getElementById('btnVerifyMFA').addEventListener('click', doMFA);
+  document.getElementById('mfaCode').addEventListener('keydown', function(e){ if(e.key==='Enter') doMFA(); });
   document.getElementById('btnMFABack').addEventListener('click', function() {
-    document.getElementById('mfaBox').style.display = 'none';
-    document.getElementById('loginBox').style.display = 'block';
+    document.getElementById('mfaBox').style.display='none';
+    document.getElementById('loginBox').style.display='block';
   });
 
-  // ── TOPBAR BUTTONS ──
+  // ── TOPBAR ──
   document.getElementById('topLogo').addEventListener('click', function() { nav('dashboard'); });
   document.getElementById('toggleSidebarBtn').addEventListener('click', function() { document.getElementById('sidebar').classList.toggle('collapsed'); });
-  document.getElementById('notifBtn').addEventListener('click', function(e) {
-    e.stopPropagation();
-    document.getElementById('notifPanel').classList.toggle('open');
-  });
+  document.getElementById('notifBtn').addEventListener('click', function(e) { e.stopPropagation(); document.getElementById('notifPanel').classList.toggle('open'); });
   document.getElementById('settingsBtn').addEventListener('click', function() { nav('settings'); });
   document.getElementById('avatarBtn').addEventListener('click', function() { nav('profile'); });
-  document.getElementById('helpBtn').addEventListener('click', function() { toast('Help documentation — coming soon', 'info'); });
+  document.getElementById('helpBtn').addEventListener('click', function() { toast('Docs available at /docs','info'); });
   var refreshBtn = document.getElementById('refreshBtn');
-  if (refreshBtn) refreshBtn.addEventListener('click', function() { toast('Dashboard refreshed', 'success'); });
+  if (refreshBtn) refreshBtn.addEventListener('click', function() { loadDashboard().then(function(){ toast('Dashboard refreshed','success'); }); });
 
   // ── MODAL CLOSE ──
   document.getElementById('modalClose').addEventListener('click', closeModal);
@@ -1028,14 +1847,14 @@ document.addEventListener('DOMContentLoaded', function() {
   document.addEventListener('click', function(e) {
     var el = e.target;
 
-    // nav by data-page
+    // nav by data-page (skip inside modal overlay)
     var navEl = el.closest('[data-page]');
     if (navEl && !el.closest('.overlay')) {
       var pg = navEl.dataset.page;
       if (pg) { nav(pg); return; }
     }
 
-    // sidebar nav parents (dropdowns)
+    // sidebar dropdowns
     var parent = el.closest('.nav-parent');
     if (parent) {
       var subId = parent.dataset.sub;
@@ -1053,88 +1872,653 @@ document.addEventListener('DOMContentLoaded', function() {
       document.getElementById('notifPanel').classList.remove('open');
     }
 
-    // PO detail links
+    // PO detail link
     var poLink = el.closest('.po-detail-link');
-    if (poLink) {
+    if (poLink && poLink.dataset.po) {
       var poNum = poLink.dataset.po;
-      if (poNum) {
-        document.getElementById('poDetailNum').textContent = poNum;
-        document.getElementById('poDetailTitle').textContent = 'Purchase Order ' + poNum;
-        nav('poDetail');
-        return;
-      }
+      document.getElementById('poDetailNum').textContent = poNum;
+      document.getElementById('poDetailTitle').textContent = 'Purchase Order ' + poNum;
+      nav('poDetail'); return;
     }
 
-    // approve PO
-    var approveBtn = el.closest('.approve-po-btn');
-    if (approveBtn) {
-      var po = approveBtn.dataset.po;
-      toast((po || 'PO') + ' approved successfully', 'success');
-      var row = approveBtn.closest('tr');
-      if (row) {
-        var statusCell = row.querySelector('.tag');
-        if (statusCell) { statusCell.textContent = 'Approved'; statusCell.className = 'tag tag-green'; }
-        row.style.background = '';
-        approveBtn.parentElement.innerHTML = '<button class="btn btn-ghost btn-xs">View</button>';
-      }
+    // Approve PO from DB
+    var appPODB = el.closest('.approve-po-db-btn');
+    if (appPODB) {
+      var poId = appPODB.dataset.id;
+      appPODB.disabled = true; appPODB.textContent = '…';
+      api('/procurement/purchase-orders/' + poId + '/approve', {method:'POST'})
+        .then(function() { toast('PO approved successfully','success'); loadPOs(); })
+        .catch(function(e) { toast('Error: '+e.message,'error'); appPODB.disabled=false; appPODB.textContent='✓ Approve'; });
       return;
     }
 
-    // generic approve buttons
+    // IQC inspect button (from loaded table)
+    var iqcBtn = el.closest('.iqc-inspect-btn');
+    if (iqcBtn) {
+      var iqcId = iqcBtn.dataset.id;
+      openModal('Record IQC Result',
+        row2(sel('Result','result',[{v:'PASS',l:'Pass'},{v:'CONDITIONAL_PASS',l:'Conditional Pass'},{v:'FAIL',l:'Fail'}]),
+             fld('Inspector','inspector','text','Inspector name')) +
+        textarea('Remarks','remarks','Findings / observations'),
+        null,
+        async function() {
+          var d = getFormData();
+          if (!d.result) throw new Error('Select a result');
+          await api('/quality/iqc/' + iqcId + '/result', {method:'POST', body: JSON.stringify(d)});
+          loadIQC();
+        }
+      ); return;
+    }
+
+    // generic approve
     var appBtn = el.closest('.approve-btn');
-    if (appBtn) { toast('Approved successfully', 'success'); return; }
+    if (appBtn) { toast('Approved successfully','success'); return; }
 
-    // pay buttons
+    // pay
     var payBtn = el.closest('.pay-btn');
-    if (payBtn) { toast('Payment initiated successfully', 'success'); return; }
+    if (payBtn) { toast('Payment initiated successfully','success'); return; }
 
-    // escalate buttons
+    // escalate
     var escBtn = el.closest('.escalate-btn');
-    if (escBtn) { toast('Escalation email sent', 'warn'); return; }
+    if (escBtn) { toast('Escalation sent','warn'); return; }
 
-    // nav-item-card (dashboard approvals)
+    // dashboard nav cards
     var card = el.closest('.nav-item-card');
     if (card && card.dataset.page) { nav(card.dataset.page); return; }
   });
 
-  // ── PO BUTTONS ──
+  // ── PURCHASE ──
   var newPOBtn = document.getElementById('newPOBtn');
-  if (newPOBtn) newPOBtn.addEventListener('click', function() {
-    openModal('New Purchase Order', genericForm([
-      {label:'Vendor', type:'select', options:['SolarTech Cells','GlassCraft','EVA Industries','RibbonTech']},
-      {label:'PO Date', type:'date', value:'2025-05-15'},
-      {label:'Item', type:'select', options:['Solar Cells 182mm','EVA Film','Toughened Glass','Ribbon Wire']},
-      {label:'Quantity', type:'number', placeholder:'Enter qty'},
-      {label:'Unit Price (₹)', type:'text', placeholder:'0.00'},
-      {label:'Delivery Date', type:'date'}
-    ]));
+  if (newPOBtn) newPOBtn.addEventListener('click', async function() {
+    var vendors = await vendorOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('New Purchase Order',
+      row2(sel('Vendor *','vendorId',vendors), fld('PO Date *','poDate','date','',today)) +
+      row2(fld('Delivery Date','deliveryDate','date'), fld('Total Amount (₹)','totalAmount','number','0')) +
+      fld('AI Risk Note','aiRisk','text','Optional AI flag'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.vendorId) throw new Error('Select a vendor');
+        if (!d.poDate) throw new Error('Enter PO date');
+        d.poNo = autoNo('PO');
+        await api('/procurement/purchase-orders', {method:'POST', body: JSON.stringify(d)});
+        loadPOs();
+      }
+    );
   });
 
   var exportPOBtn = document.getElementById('exportPOBtn');
-  if (exportPOBtn) exportPOBtn.addEventListener('click', function() { toast('Exported to Excel', 'success'); });
-
+  if (exportPOBtn) exportPOBtn.addEventListener('click', function() { toast('Exported to Excel','success'); });
   var clonePOBtn = document.getElementById('clonePOBtn');
-  if (clonePOBtn) clonePOBtn.addEventListener('click', function() { toast('PO cloned as PO-2496', 'success'); });
-
+  if (clonePOBtn) clonePOBtn.addEventListener('click', function() { toast('PO cloned','success'); });
   var printPOBtn = document.getElementById('printPOBtn');
-  if (printPOBtn) printPOBtn.addEventListener('click', function() { toast('Print dialog opening...', 'info'); });
-
+  if (printPOBtn) printPOBtn.addEventListener('click', function() { window.print(); });
   var addNoteBtn = document.getElementById('addNoteBtn');
-  if (addNoteBtn) addNoteBtn.addEventListener('click', function() { toast('Note added successfully', 'success'); });
-
+  if (addNoteBtn) addNoteBtn.addEventListener('click', function() { toast('Note added','success'); });
   var attachZone = document.getElementById('attachZone');
-  if (attachZone) attachZone.addEventListener('click', function() { toast('File upload dialog would open', 'info'); });
+  if (attachZone) attachZone.addEventListener('click', function() { toast('File upload — not yet implemented','info'); });
 
-  // ── GRN BUTTON ──
+  // ── GRN ──
   var newGRNBtn = document.getElementById('newGRNBtn');
-  if (newGRNBtn) newGRNBtn.addEventListener('click', function() {
-    openModal('New GRN', genericForm([
-      {label:'Purchase Order', type:'select', options:['PO-2487','PO-2488','PO-2490']},
-      {label:'GRN Date', type:'date', value:'2025-05-15'},
-      {label:'Qty Received', type:'number', placeholder:'Qty'},
-      {label:'Vendor Batch No.', type:'text', placeholder:'Vendor batch ref'}
-    ]));
+  if (newGRNBtn) newGRNBtn.addEventListener('click', async function() {
+    var pos = await poOptions();
+    var vendors = await vendorOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('New GRN',
+      row2(sel('Purchase Order *','purchaseOrderId',pos), sel('Vendor *','vendorId',vendors)) +
+      row2(fld('Received Date','receivedAt','date','',today), fld('Vehicle No.','vehicleNo','text','MH-01-XXXX')) +
+      fld('LR Number','lrNo','text','Lorry receipt number'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.purchaseOrderId) throw new Error('Select a purchase order');
+        if (!d.vendorId) throw new Error('Select a vendor');
+        d.grnNo = autoNo('GRN');
+        await api('/procurement/goods-receipts', {method:'POST', body: JSON.stringify(d)});
+        loadGRNs();
+      }
+    );
   });
+
+  // ── PR ──
+  document.querySelector('#pg-pr .btn-primary')?.addEventListener('click', function() {
+    openModal('New Purchase Requisition',
+      row2(fld('PR No.','prNo','text','Auto-generated',''), fld('Required By','requiredBy','date')) +
+      row2(sel('Source','source',[{v:'MRP',l:'MRP System'},{v:'Manual',l:'Manual'},{v:'Production',l:'Production Plan'}]),
+           sel('Status','status',[{v:'DRAFT',l:'Draft'},{v:'PENDING_APPROVAL',l:'Pending Approval'}])) +
+      fld('Requested By','requestedBy','text','Your name'),
+      null,
+      async function() {
+        var d = getFormData();
+        d.prNo = d.prNo || autoNo('PR');
+        await api('/procurement/purchase-requisitions', {method:'POST', body: JSON.stringify(d)});
+        loadPRs();
+      }
+    );
+  });
+
+  // ── VENDOR INVOICE ──
+  var uploadInvBtn = document.getElementById('uploadInvBtn');
+  if (uploadInvBtn) uploadInvBtn.addEventListener('click', async function() {
+    var vendors = await vendorOptions();
+    var pos = await poOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('Upload Vendor Invoice',
+      row2(sel('Vendor *','vendorId',vendors), fld('Invoice No. *','invoiceNo','text','Vendor invoice number')) +
+      row2(fld('Invoice Date *','invoiceDate','date','',today), fld('Amount (₹) *','amount','number','0')) +
+      sel('Purchase Order','purchaseOrderId',pos),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.vendorId) throw new Error('Select a vendor');
+        if (!d.invoiceNo) throw new Error('Enter invoice number');
+        if (!d.amount) throw new Error('Enter amount');
+        await api('/procurement/vendor-invoices', {method:'POST', body: JSON.stringify(d)});
+        loadVendorInvoices();
+      }
+    );
+  });
+
+  // ── AP PAYMENT ──
+  var newAPBtn = document.getElementById('newAPBtn');
+  if (newAPBtn) newAPBtn.addEventListener('click', async function() {
+    var vendors = await vendorOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('Record AP Payment',
+      row2(sel('Vendor *','vendorId',vendors), fld('Payment No.','paymentNo','text','')) +
+      row2(fld('Payment Date *','paymentDate','date','',today), fld('Amount (₹) *','amount','number','0')) +
+      row2(sel('Mode *','mode',[{v:'NEFT',l:'NEFT'},{v:'RTGS',l:'RTGS'},{v:'IMPS',l:'IMPS'},{v:'Cheque',l:'Cheque'}]),
+           fld('Bank Reference','bankReference','text','UTR / Cheque No.')),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.vendorId) throw new Error('Select a vendor');
+        if (!d.amount) throw new Error('Enter amount');
+        if (!d.mode) throw new Error('Select payment mode');
+        d.paymentNo = d.paymentNo || autoNo('PAY');
+        d.paymentDate = d.paymentDate || today;
+        await api('/procurement/ap-payments', {method:'POST', body: JSON.stringify(d)});
+        loadAPPayments();
+      }
+    );
+  });
+
+  // ── SALES ORDER ──
+  var newSOBtn = document.getElementById('newSOBtn');
+  if (newSOBtn) newSOBtn.addEventListener('click', async function() {
+    var customers = await customerOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('New Sales Order',
+      row2(sel('Customer *','customerId',customers), fld('Order Date *','orderDate','date','',today)) +
+      row2(fld('Delivery Date','deliveryDate','date'), fld('Total Amount (₹)','totalAmount','number','0')) +
+      sel('Status','status',[{v:'DRAFT',l:'Draft'},{v:'OPEN',l:'Open'},{v:'IN_PROGRESS',l:'Confirmed'}]),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.customerId) throw new Error('Select a customer');
+        d.soNo = autoNo('SO');
+        d.orderDate = d.orderDate || today;
+        await api('/sales/orders', {method:'POST', body: JSON.stringify(d)});
+        loadSalesOrders();
+      }
+    );
+  });
+
+  // ── DISPATCH ──
+  document.querySelector('#pg-dispatch .btn-primary')?.addEventListener('click', async function() {
+    var sos = await soOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('Create Dispatch',
+      row2(sel('Sales Order *','salesOrderId',sos), fld('Customer Name *','customerName','text','')) +
+      row2(fld('Quantity *','quantity','number','0'), fld('Dispatch Date','dispatchedAt','date','',today)) +
+      row2(fld('Transporter','transporter','text','Transport company'), fld('LR Number','lrNo','text','')),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.salesOrderId) throw new Error('Select a sales order');
+        if (!d.customerName) throw new Error('Enter customer name');
+        if (!d.quantity) throw new Error('Enter quantity');
+        d.dispatchNo = autoNo('DSP');
+        await api('/sales/dispatches', {method:'POST', body: JSON.stringify(d)});
+        loadDispatches();
+      }
+    );
+  });
+
+  // ── AR INVOICE ──
+  document.querySelector('#pg-arInvoice .btn-primary')?.addEventListener('click', async function() {
+    var customers = await customerOptions();
+    var sos = await soOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('New AR Invoice',
+      row2(sel('Customer *','customerId',customers), fld('Invoice No.','invoiceNo','text','')) +
+      row2(fld('Invoice Date *','invoiceDate','date','',today), fld('Amount (₹) *','amount','number','0')) +
+      sel('Sales Order','salesOrderId',sos),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.customerId) throw new Error('Select a customer');
+        if (!d.amount) throw new Error('Enter amount');
+        d.invoiceNo = d.invoiceNo || autoNo('INV');
+        d.invoiceDate = d.invoiceDate || today;
+        await api('/sales/ar-invoices', {method:'POST', body: JSON.stringify(d)});
+        loadARInvoices();
+      }
+    );
+  });
+
+  // ── AR PAYMENT ──
+  var newARBtn = document.getElementById('newARBtn');
+  if (newARBtn) newARBtn.addEventListener('click', async function() {
+    var customers = await customerOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('Record Customer Receipt',
+      row2(sel('Customer *','customerId',customers), fld('Receipt No.','receiptNo','text','')) +
+      row2(fld('Receipt Date *','receiptDate','date','',today), fld('Amount (₹) *','amount','number','0')) +
+      row2(sel('Mode *','mode',[{v:'NEFT',l:'NEFT'},{v:'RTGS',l:'RTGS'},{v:'IMPS',l:'IMPS'},{v:'Cheque',l:'Cheque'}]),
+           fld('Bank Reference','bankReference','text','UTR No.')),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.customerId) throw new Error('Select a customer');
+        if (!d.amount) throw new Error('Enter amount');
+        if (!d.mode) throw new Error('Select payment mode');
+        d.receiptNo = d.receiptNo || autoNo('RCP');
+        d.receiptDate = d.receiptDate || today;
+        await api('/sales/ar-payments', {method:'POST', body: JSON.stringify(d)});
+        loadARPayments();
+      }
+    );
+  });
+
+  // ── IQC ──
+  var newIQCBtn = document.getElementById('newIQCBtn');
+  if (newIQCBtn) newIQCBtn.addEventListener('click', async function() {
+    var grns = await grnOptions();
+    var items = await itemOptions();
+    var vendors = await vendorOptions();
+    openModal('New IQC Inspection',
+      row2(sel('GRN *','goodsReceiptId',grns), sel('Item *','itemId',items)) +
+      row2(sel('Vendor','vendorId',vendors), fld('Quantity *','quantity','number','0')) +
+      row2(fld('Inspector','inspector','text','Inspector name'),
+           sel('Result','result',[{v:'PENDING',l:'Pending'},{v:'PASS',l:'Pass'},{v:'CONDITIONAL_PASS',l:'Conditional Pass'},{v:'FAIL',l:'Fail'}])) +
+      textarea('Remarks','remarks','Findings'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.goodsReceiptId) throw new Error('Select a GRN');
+        if (!d.itemId) throw new Error('Select an item');
+        if (!d.quantity) throw new Error('Enter quantity');
+        d.iqcNo = autoNo('IQC');
+        await api('/quality/iqc', {method:'POST', body: JSON.stringify(d)});
+        loadIQC();
+      }
+    );
+  });
+
+  // ── FQC ──
+  document.querySelector('#pg-fqc .page-header')?.closest('.page')?.querySelector('.actions')?.querySelector('.btn-primary')?.addEventListener('click', async function() {
+    var items = await itemOptions();
+    openModal('New FQC / Flash Test Record',
+      row2(sel('Item *','itemId',items), fld('Serial No.','serialNo','text','MOD-XXXXXX')) +
+      row2(fld('Flash Power (W) *','flashPowerWatts','number','0'), fld('Prod. Order No.','productionOrderNo','text','')) +
+      row2(sel('Result','result',[{v:'PENDING',l:'Pending'},{v:'PASS',l:'Pass'},{v:'CONDITIONAL_PASS',l:'Conditional Pass'},{v:'FAIL',l:'Fail'}]),
+           textarea('Remarks','remarks','Notes')),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.itemId) throw new Error('Select an item');
+        if (!d.flashPowerWatts) throw new Error('Enter flash power');
+        d.fqcNo = autoNo('FQC');
+        await api('/quality/fqc', {method:'POST', body: JSON.stringify(d)});
+        loadFQC();
+      }
+    );
+  });
+
+  // ── NCR ──
+  document.querySelector('#pg-ncr .btn-primary')?.addEventListener('click', function() {
+    openModal('New NCR',
+      row2(fld('NCR No.','ncrNo','text',''), sel('Severity','severity',[{v:'CRITICAL',l:'Critical'},{v:'HIGH',l:'High'},{v:'MEDIUM',l:'Medium'},{v:'LOW',l:'Low'}])) +
+      textarea('Description *','description','Describe the non-conformance') +
+      row2(fld('Disposition','disposition','text','e.g. Vendor Return, Rework'),
+           sel('Status','status',[{v:'OPEN',l:'Open'},{v:'IN_PROGRESS',l:'In Progress'},{v:'CLOSED',l:'Closed'}])),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.description) throw new Error('Enter description');
+        d.ncrNo = d.ncrNo || autoNo('NCR');
+        await api('/quality/ncr', {method:'POST', body: JSON.stringify(d)});
+        loadNCR();
+      }
+    );
+  });
+
+  // ── PRODUCTION ORDER ──
+  var newProdBtn = document.getElementById('newProdBtn');
+  if (newProdBtn) newProdBtn.addEventListener('click', async function() {
+    var items = await itemOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('New Production Order',
+      row2(sel('Product *','itemId',items), fld('Planned Qty *','plannedQty','number','0')) +
+      row2(fld('Line Name *','lineName','text','e.g. Line 1'), fld('Planned Date','plannedDate','date','',today)) +
+      sel('Status','status',[{v:'PLANNED',l:'Planned'},{v:'RELEASED',l:'Released'},{v:'IN_PROGRESS',l:'In Progress'}]),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.itemId) throw new Error('Select a product');
+        if (!d.plannedQty) throw new Error('Enter planned quantity');
+        if (!d.lineName) throw new Error('Enter line name');
+        d.orderNo = autoNo('PRD');
+        await api('/production/orders', {method:'POST', body: JSON.stringify(d)});
+        loadProdOrders();
+      }
+    );
+  });
+
+  // ── WORK ORDER ──
+  document.querySelector('#pg-workOrders .page-header')?.closest('.page')?.querySelector('.actions')?.querySelector('.btn-primary')?.addEventListener('click', async function() {
+    var prods = await prodOrderOptions();
+    openModal('New Work Order',
+      row2(sel('Production Order *','productionOrderId',prods), fld('Work Order No.','workOrderNo','text','')) +
+      row2(fld('Station','station','text','e.g. Tabbing'), sel('Status','status',[{v:'PLANNED',l:'Planned'},{v:'RELEASED',l:'Released'},{v:'IN_PROGRESS',l:'In Progress'}])) +
+      fld('Assigned To','assignedTo','text','Operator name'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.productionOrderId) throw new Error('Select a production order');
+        d.workOrderNo = d.workOrderNo || autoNo('WO');
+        await api('/production/work-orders', {method:'POST', body: JSON.stringify(d)});
+        loadWorkOrders();
+      }
+    );
+  });
+
+  // ── OEE LOG ──
+  document.querySelector('#pg-oee .page-header')?.closest('.page')?.querySelector('.actions')?.querySelector('.btn-primary')?.addEventListener('click', function() {
+    var today = new Date().toISOString().slice(0,10);
+    openModal('Log OEE Data',
+      row2(fld('Line Name *','lineName','text','e.g. Line 1'), fld('Date *','logDate','date','',today)) +
+      row2(fld('Availability (%) *','availability','number','0'), fld('Performance (%) *','performance','number','0')) +
+      row2(fld('Quality Rate (%) *','quality','number','0'), fld('OEE (%) *','oee','number','0')) +
+      row2(fld('Downtime (min)','downtimeMinutes','number','0'), textarea('Notes','notes','Optional notes')),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.lineName || !d.logDate || !d.oee) throw new Error('Fill required fields');
+        await api('/production/oee', {method:'POST', body: JSON.stringify(d)});
+        loadOEE();
+      }
+    );
+  });
+
+  // ── JOURNAL ENTRY ──
+  var newJEBtn = document.getElementById('newJEBtn');
+  if (newJEBtn) newJEBtn.addEventListener('click', function() {
+    var today = new Date().toISOString().slice(0,10);
+    openModal('New Journal Entry',
+      row2(fld('JE No.','jeNo','text',''), fld('Date *','entryDate','date','',today)) +
+      row2(sel('Type *','entryType',[{v:'Manual',l:'Manual'},{v:'Adjustment',l:'Adjustment'},{v:'Depreciation',l:'Depreciation'},{v:'Accrual',l:'Accrual'}]),
+           fld('Amount (₹) *','amount','number','0')) +
+      textarea('Description *','description','Journal entry narration'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.entryDate) throw new Error('Enter date');
+        if (!d.amount) throw new Error('Enter amount');
+        if (!d.description) throw new Error('Enter description');
+        d.jeNo = d.jeNo || autoNo('JE');
+        await api('/finance/journal-entries', {method:'POST', body: JSON.stringify(d)});
+        loadJournalEntries();
+      }
+    );
+  });
+
+  // ── BANK RECON ──
+  var importStmtBtn = document.getElementById('importStmtBtn');
+  if (importStmtBtn) importStmtBtn.addEventListener('click', function() {
+    var today = new Date().toISOString().slice(0,10);
+    openModal('New Bank Reconciliation',
+      row2(fld('Recon No.','reconNo','text',''), fld('Bank Account *','bankAccount','text','HDFC / SBI / ICICI')) +
+      row2(fld('Statement Date *','statementDate','date','',today), fld('Bank Balance (₹) *','bankBalance','number','0')) +
+      fld('Book Balance (₹) *','bookBalance','number','0'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.bankAccount) throw new Error('Enter bank account');
+        if (!d.bankBalance) throw new Error('Enter bank balance');
+        if (!d.bookBalance) throw new Error('Enter book balance');
+        d.reconNo = d.reconNo || autoNo('RECON');
+        d.statementDate = d.statementDate || today;
+        await api('/finance/bank-reconciliations', {method:'POST', body: JSON.stringify(d)});
+        loadBankRecon();
+      }
+    );
+  });
+
+  // ── TAX REPORT ──
+  var fileGSTBtn = document.getElementById('fileGSTBtn');
+  if (fileGSTBtn) fileGSTBtn.addEventListener('click', function() {
+    openModal('File Tax Report',
+      row2(fld('Report No.','reportNo','text',''), fld('Period *','period','text','e.g. Apr 2025')) +
+      row2(sel('Type','reportType',[{v:'GSTR-1',l:'GSTR-1'},{v:'GSTR-3B',l:'GSTR-3B'},{v:'GSTR-9',l:'GSTR-9 Annual'}]),
+           fld('Taxable Value (₹)','taxableValue','number','0')) +
+      fld('Tax Amount (₹)','taxAmount','number','0'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.period) throw new Error('Enter period');
+        d.reportNo = d.reportNo || autoNo('TAX');
+        await api('/finance/tax-reports', {method:'POST', body: JSON.stringify(d)});
+        loadTaxReports(); toast('Tax report filed','success');
+      }
+    );
+  });
+
+  // ── EMPLOYEES ──
+  var newEmpBtn = document.getElementById('newEmpBtn');
+  if (newEmpBtn) newEmpBtn.addEventListener('click', function() {
+    openModal('New Employee',
+      row2(fld('Full Name *','fullName','text','Employee full name'), fld('Employee No.','empNo','text','')) +
+      row2(sel('Department *','department',[{v:'Manufacturing',l:'Manufacturing'},{v:'Quality',l:'Quality'},{v:'Procurement',l:'Procurement'},{v:'Finance',l:'Finance'},{v:'Sales',l:'Sales'},{v:'HR',l:'HR'},{v:'IT',l:'IT'}]),
+           fld('Role *','role','text','Job title')) +
+      row2(sel('Shift','shift',[{v:'General',l:'General'},{v:'Morning',l:'Morning'},{v:'Evening',l:'Evening'},{v:'Night',l:'Night'}]),
+           fld('Email','email','email','emp@solaros.in')) +
+      fld('Phone','phone','text','+91-XXXXXXXXXX'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.fullName) throw new Error('Enter full name');
+        if (!d.department) throw new Error('Select department');
+        if (!d.role) throw new Error('Enter role');
+        d.empNo = d.empNo || autoNo('EMP');
+        await api('/hr/employees', {method:'POST', body: JSON.stringify(d)});
+        loadEmployees();
+      }
+    );
+  });
+
+  // ── ATTENDANCE ──
+  var markAttnBtn = document.getElementById('markAttnBtn');
+  if (markAttnBtn) markAttnBtn.addEventListener('click', async function() {
+    var emps = await employeeOptions();
+    var today = new Date().toISOString().slice(0,10);
+    openModal('Mark Attendance',
+      row2(sel('Employee *','employeeId',emps),
+           sel('Status','status',[{v:'PRESENT',l:'Present'},{v:'ABSENT',l:'Absent'},{v:'ON_LEAVE',l:'On Leave'}])) +
+      row2(fld('Work Date *','workDate','date','',today), fld('Check In','checkIn','datetime-local')) +
+      fld('Check Out','checkOut','datetime-local'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.employeeId) throw new Error('Select employee');
+        if (!d.workDate) throw new Error('Select date');
+        await api('/hr/attendance', {method:'POST', body: JSON.stringify(d)});
+        loadAttendance();
+      }
+    );
+  });
+
+  // ── LEAVE ──
+  var applyLeaveBtn = document.getElementById('applyLeaveBtn');
+  if (applyLeaveBtn) applyLeaveBtn.addEventListener('click', async function() {
+    var emps = await employeeOptions();
+    openModal('Apply for Leave',
+      row2(sel('Employee *','employeeId',emps),
+           sel('Leave Type *','leaveType',[{v:'Annual Leave',l:'Annual Leave'},{v:'Sick Leave',l:'Sick Leave'},{v:'Casual Leave',l:'Casual Leave'},{v:'Compensatory Off',l:'Comp Off'}])) +
+      row2(fld('From Date *','fromDate','date'), fld('To Date *','toDate','date')) +
+      textarea('Reason','reason','Reason for leave'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.employeeId) throw new Error('Select employee');
+        if (!d.leaveType) throw new Error('Select leave type');
+        if (!d.fromDate || !d.toDate) throw new Error('Select dates');
+        await api('/hr/leave-requests', {method:'POST', body: JSON.stringify(d)});
+        loadLeaveRequests();
+      }
+    );
+  });
+
+  // ── PAYROLL ──
+  var runPayrollBtn = document.getElementById('runPayrollBtn');
+  if (runPayrollBtn) runPayrollBtn.addEventListener('click', function() {
+    var now = new Date();
+    var period = now.toLocaleDateString('en-IN', {month:'long', year:'numeric'});
+    openModal('Run Payroll',
+      row2(fld('Payroll No.','payrollNo','text',''), fld('Period *','period','text','',period)) +
+      row2(fld('Gross Amount (₹)','grossAmount','number','0'), fld('Net Amount (₹)','netAmount','number','0')),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.period) throw new Error('Enter period');
+        d.payrollNo = d.payrollNo || autoNo('PAY');
+        await api('/hr/payroll-runs', {method:'POST', body: JSON.stringify(d)});
+        loadPayroll();
+        toast('Payroll run completed','success');
+      }
+    );
+  });
+
+  // ── JOBS ──
+  var postJobBtn = document.getElementById('postJobBtn');
+  if (postJobBtn) postJobBtn.addEventListener('click', function() {
+    openModal('Post Job Opening',
+      row2(fld('Job Title *','title','text','e.g. QC Engineer'),
+           sel('Department *','department',[{v:'Quality',l:'Quality'},{v:'Manufacturing',l:'Manufacturing'},{v:'Finance',l:'Finance'},{v:'Sales',l:'Sales'},{v:'IT',l:'IT'},{v:'HR',l:'HR'}])) +
+      row2(fld('Experience Required','experience','text','e.g. 3-5 years'),
+           sel('Priority','priority',[{v:'High',l:'High'},{v:'Medium',l:'Medium'},{v:'Low',l:'Low'}])),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.title) throw new Error('Enter job title');
+        if (!d.department) throw new Error('Select department');
+        d.jobNo = autoNo('JOB');
+        await api('/hr/jobs', {method:'POST', body: JSON.stringify(d)});
+        loadJobs();
+      }
+    );
+  });
+
+  // ── ITEM MASTER ──
+  var newItemBtn = document.getElementById('newItemBtn');
+  if (newItemBtn) newItemBtn.addEventListener('click', function() {
+    openModal('New Item',
+      row2(fld('Item Code *','code','text','e.g. RM-010'),
+           sel('Category *','category',[{v:'RAW_MATERIAL',l:'Raw Material'},{v:'FINISHED_GOOD',l:'Finished Good'},{v:'CONSUMABLE',l:'Consumable'},{v:'SERVICE',l:'Service'}])) +
+      row2(fld('Description *','description','text','Full item description'),
+           sel('UOM *','uom',[{v:'PCS',l:'Pieces'},{v:'ROLLS',l:'Rolls'},{v:'KG',l:'Kilograms'},{v:'METRES',l:'Metres'},{v:'LITRES',l:'Litres'},{v:'SETS',l:'Sets'}])) +
+      row2(fld('HSN Code','hsnCode','text','HSN Code'), fld('GST Rate (%)','gstRate','number','0')) +
+      fld('Reorder Level','reorderLevel','number','0'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.code) throw new Error('Enter item code');
+        if (!d.description) throw new Error('Enter description');
+        if (!d.category) throw new Error('Select category');
+        if (!d.uom) throw new Error('Select UOM');
+        await api('/masters/items', {method:'POST', body: JSON.stringify(d)});
+        loadItems();
+      }
+    );
+  });
+
+  // ── VENDOR MASTER ──
+  var newVendorBtn = document.getElementById('newVendorBtn');
+  if (newVendorBtn) newVendorBtn.addEventListener('click', function() {
+    openModal('New Vendor',
+      row2(fld('Vendor Code *','code','text','e.g. VND-010'), fld('Company Name *','name','text','Company name')) +
+      row2(fld('Category','category','text','e.g. Solar Cells'), fld('City','city','text','City')) +
+      row2(fld('Phone','phone','text','+91-XXXXXXXXXX'), fld('Email','email','email','vendor@company.com')) +
+      row2(fld('GSTIN','gstin','text','GST Number'), sel('Status','status',[{v:'APPROVED',l:'Approved'},{v:'UNDER_REVIEW',l:'Under Review'},{v:'BLOCKED',l:'Blocked'}])),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.code) throw new Error('Enter vendor code');
+        if (!d.name) throw new Error('Enter vendor name');
+        await api('/masters/vendors', {method:'POST', body: JSON.stringify(d)});
+        loadVendors();
+      }
+    );
+  });
+
+  // ── CUSTOMER MASTER ──
+  document.querySelector('#pg-customerMaster .btn-primary')?.addEventListener('click', function() {
+    openModal('New Customer',
+      row2(fld('Customer Code *','code','text','e.g. CUS-010'), fld('Company Name *','name','text','Company name')) +
+      row2(fld('City','city','text','City'), fld('Phone','phone','text','+91-XXXXXXXXXX')) +
+      row2(fld('Email','email','email','customer@company.com'), fld('GSTIN','gstin','text','GST Number')) +
+      fld('Credit Limit (₹)','creditLimit','number','0'),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.code) throw new Error('Enter customer code');
+        if (!d.name) throw new Error('Enter customer name');
+        await api('/masters/customers', {method:'POST', body: JSON.stringify(d)});
+        loadCustomers();
+      }
+    );
+  });
+
+  // ── STOCK ADJUSTMENT ──
+  var adjustStockBtn = document.getElementById('adjustStockBtn');
+  if (adjustStockBtn) adjustStockBtn.addEventListener('click', async function() {
+    var items = await itemOptions();
+    openModal('Stock Adjustment',
+      row2(sel('Item *','itemId',items), fld('Batch No. *','batchNo','text','BATCH-XXX')) +
+      row2(fld('Quantity *','quantity','number','0'), fld('Unit Cost (₹)','unitCost','number','0')) +
+      sel('Movement Type *','movementType',[{v:'RECEIPT',l:'Add (Receipt)'},{v:'ISSUE',l:'Remove (Issue)'},{v:'ADJUSTMENT',l:'Adjustment'}]),
+      null,
+      async function() {
+        var d = getFormData();
+        if (!d.itemId) throw new Error('Select an item');
+        if (!d.quantity) throw new Error('Enter quantity');
+        // Create stock movement
+        var moveData = {itemId:d.itemId, movementType:d.movementType||'ADJUSTMENT', quantity:d.quantity, notes:'Manual stock adjustment'};
+        await api('/inventory/movements', {method:'POST', body: JSON.stringify(moveData)});
+        loadStockOverview();
+      }
+    );
+  });
+
+  // ── PROFILE SAVE ──
+  var saveProfileBtn = document.getElementById('saveProfileBtn');
+  if (saveProfileBtn) saveProfileBtn.addEventListener('click', async function() {
+    var page = document.getElementById('pg-profile');
+    var nameInput = page.querySelector('input.inp:not([type=password])');
+    if (!nameInput) return;
+    try {
+      await api('/profile', {method:'PATCH', body: JSON.stringify({name: nameInput.value.trim()})});
+      toast('Profile updated successfully','success');
+    } catch(e) { toast('Error: '+e.message,'error'); }
+  });
+
+  var saveCompanyBtn = document.getElementById('saveCompanyBtn');
+  if (saveCompanyBtn) saveCompanyBtn.addEventListener('click', function() { toast('Company profile saved','success'); });
+
+  var changePwdBtn = document.getElementById('changePwdBtn');
+  if (changePwdBtn) changePwdBtn.addEventListener('click', function() { toast('Password change — backend not yet implemented','info'); });
 
   // ── AI COPILOT ──
   var aiSendBtn = document.getElementById('aiSendBtn');
@@ -1143,206 +2527,37 @@ document.addEventListener('DOMContentLoaded', function() {
     var q = inp.value.trim();
     if (q) { sendAIMessage(q); inp.value = ''; }
   });
-
   var aiInput = document.getElementById('aiInput');
   if (aiInput) aiInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') { var q = this.value.trim(); if (q) { sendAIMessage(q); this.value = ''; } }
+    if (e.key === 'Enter' && !e.shiftKey) { var q = this.value.trim(); if (q) { sendAIMessage(q); this.value = ''; } }
   });
-
   document.querySelectorAll('.ai-quick-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      nav('aiCopilot');
-      sendAIMessage(btn.dataset.q);
-    });
+    btn.addEventListener('click', function() { nav('aiCopilot'); sendAIMessage(btn.dataset.q); });
   });
 
   var createWOBtn = document.getElementById('createWOBtn');
-  if (createWOBtn) createWOBtn.addEventListener('click', function() { toast('Maintenance work order created for Line 3', 'success'); });
+  if (createWOBtn) createWOBtn.addEventListener('click', function() { toast('Maintenance work order created for Line 3','success'); });
 
-  // ── IQC ──
-  var newIQCBtn = document.getElementById('newIQCBtn');
-  if (newIQCBtn) newIQCBtn.addEventListener('click', function() {
-    openModal('New IQC Inspection', genericForm([
-      {label:'GRN Reference', type:'select', options:['GRN-1193','GRN-1192']},
-      {label:'Inspector', type:'text', value:'Ramesh K.'},
-      {label:'Result', type:'select', options:['Pass','Conditional Pass','Fail']},
-      {label:'Remarks', type:'textarea', placeholder:'Inspection notes'}
-    ]));
-  });
+  var attachZone = document.getElementById('attachZone');
+  if (attachZone) attachZone.addEventListener('click', function() { toast('File upload — coming soon','info'); });
+  var addNoteBtn = document.getElementById('addNoteBtn');
+  if (addNoteBtn) addNoteBtn.addEventListener('click', function() { toast('Note added','success'); });
+  var importStmtBtn2 = document.getElementById('importStmtBtn');
+  if (importStmtBtn2 && importStmtBtn2 !== importStmtBtn) importStmtBtn2.addEventListener('click', function() { toast('Bank statement imported','success'); });
 
-  var inspectBtn = document.getElementById('inspectBtn');
-  if (inspectBtn) inspectBtn.addEventListener('click', function() {
-    openModal('Record IQC Result — IQC-441', genericForm([
-      {label:'GRN', type:'text', value:'GRN-1193'},
-      {label:'Inspector', type:'text', value:'Ramesh K.'},
-      {label:'Visual Inspection', type:'select', options:['Pass','Fail']},
-      {label:'Dimensional Check', type:'select', options:['Pass','Fail']},
-      {label:'Result', type:'select', options:['Pass','Conditional Pass','Fail']},
-      {label:'Remarks', type:'textarea', placeholder:'Enter findings'}
-    ]));
-  });
-
-  // ── SALES ──
-  var newSOBtn = document.getElementById('newSOBtn');
-  if (newSOBtn) newSOBtn.addEventListener('click', function() {
-    openModal('New Sales Order', genericForm([
-      {label:'Customer', type:'select', options:['Green Energy Ltd','SunPower Projects','Rajasthan Solar']},
-      {label:'Order Date', type:'date', value:'2025-05-15'},
-      {label:'Product', type:'select', options:['600W Mono Module','595W Mono Module','580W Bifacial']},
-      {label:'Quantity (Pcs)', type:'number', placeholder:'Units'}
-    ]));
-  });
-
-  // ── MASTERS ──
-  var newItemBtn = document.getElementById('newItemBtn');
-  if (newItemBtn) newItemBtn.addEventListener('click', function() {
-    openModal('New Item', genericForm([
-      {label:'Item Code', type:'text', placeholder:'Auto-generated'},
-      {label:'Category', type:'select', options:['Raw Material','Finished Good','Consumable']},
-      {label:'Description', type:'text', placeholder:'Full description'},
-      {label:'UOM', type:'select', options:['Pcs','Rolls','Kg','Metres']},
-      {label:'HSN Code', type:'text', placeholder:'HSN'},
-      {label:'GST%', type:'select', options:['5%','12%','18%']}
-    ]));
-  });
-
-  var newVendorBtn = document.getElementById('newVendorBtn');
-  if (newVendorBtn) newVendorBtn.addEventListener('click', function() {
-    openModal('New Vendor', genericForm([
-      {label:'Vendor Name', type:'text', placeholder:'Company name'},
-      {label:'Category', type:'text', placeholder:'e.g. Solar Cells'},
-      {label:'Contact Phone', type:'text', placeholder:'+91-XXXXXXXXXX'},
-      {label:'GST Number', type:'text', placeholder:'GST No.'}
-    ]));
-  });
-
-  // ── FINANCE ──
-  var newJEBtn = document.getElementById('newJEBtn');
-  if (newJEBtn) newJEBtn.addEventListener('click', function() {
-    openModal('New Journal Entry', genericForm([
-      {label:'Date', type:'date', value:'2025-05-15'},
-      {label:'Type', type:'select', options:['Manual','Adjustment','Depreciation']},
-      {label:'Debit Account', type:'select', options:['Cash','AR','Inventory','Raw Material Cost']},
-      {label:'Credit Account', type:'select', options:['AP','Revenue','Bank','GR/IR Clearing']},
-      {label:'Amount (₹)', type:'number', placeholder:'0.00'},
-      {label:'Narration', type:'textarea', placeholder:'Description'}
-    ]));
-  });
-
-  var importStmtBtn = document.getElementById('importStmtBtn');
-  if (importStmtBtn) importStmtBtn.addEventListener('click', function() { toast('Bank statement imported', 'success'); });
-
-  var fileGSTBtn = document.getElementById('fileGSTBtn');
-  if (fileGSTBtn) fileGSTBtn.addEventListener('click', function() { toast('GSTR-1 filed successfully', 'success'); });
-
-  var uploadInvBtn = document.getElementById('uploadInvBtn');
-  if (uploadInvBtn) uploadInvBtn.addEventListener('click', function() {
-    openModal('Upload Vendor Invoice', genericForm([
-      {label:'Vendor', type:'select', options:['SolarTech Cells','GlassCraft','EVA Industries']},
-      {label:'Invoice No.', type:'text', placeholder:'Vendor invoice number'},
-      {label:'Invoice Date', type:'date', value:'2025-05-15'},
-      {label:'Amount (₹)', type:'number', placeholder:'0.00'}
-    ]));
-  });
-
-  var newAPBtn = document.getElementById('newAPBtn');
-  if (newAPBtn) newAPBtn.addEventListener('click', function() {
-    openModal('Record AP Payment', genericForm([
-      {label:'Vendor', type:'select', options:['SolarTech Cells','GlassCraft','EVA Industries']},
-      {label:'Invoice No.', type:'text', placeholder:'Invoice reference'},
-      {label:'Payment Date', type:'date', value:'2025-05-15'},
-      {label:'Amount (₹)', type:'number', placeholder:'0.00'},
-      {label:'Payment Mode', type:'select', options:['NEFT','RTGS','Cheque','IMPS']},
-      {label:'Bank Reference', type:'text', placeholder:'UTR / Cheque No.'}
-    ]));
-  });
-
-  var newARBtn = document.getElementById('newARBtn');
-  if (newARBtn) newARBtn.addEventListener('click', function() {
-    openModal('Record Customer Receipt', genericForm([
-      {label:'Customer', type:'select', options:['Green Energy Ltd','SunPower Projects','Rajasthan Solar']},
-      {label:'Invoice No.', type:'text', placeholder:'Invoice reference'},
-      {label:'Receipt Date', type:'date', value:'2025-05-15'},
-      {label:'Amount (₹)', type:'number', placeholder:'0.00'},
-      {label:'Payment Mode', type:'select', options:['NEFT','RTGS','Cheque']},
-      {label:'Bank Reference', type:'text', placeholder:'UTR No.'}
-    ]));
-  });
-
-  // ── HR ──
-  var newEmpBtn = document.getElementById('newEmpBtn');
-  if (newEmpBtn) newEmpBtn.addEventListener('click', function() {
-    openModal('New Employee', genericForm([
-      {label:'Full Name', type:'text', placeholder:'Employee name'},
-      {label:'Department', type:'select', options:['Manufacturing','Quality','Procurement','Finance','Sales','IT']},
-      {label:'Role', type:'text', placeholder:'Job title'},
-      {label:'Shift', type:'select', options:['General','Morning','Evening','Night']},
-      {label:'Email', type:'email', placeholder:'employee@solaros.in'},
-      {label:'Phone', type:'text', placeholder:'+91-XXXXXXXXXX'}
-    ]));
-  });
-
-  var markAttnBtn = document.getElementById('markAttnBtn');
-  if (markAttnBtn) markAttnBtn.addEventListener('click', function() { toast('Attendance marked for today', 'success'); });
-
-  var applyLeaveBtn = document.getElementById('applyLeaveBtn');
-  if (applyLeaveBtn) applyLeaveBtn.addEventListener('click', function() {
-    openModal('Apply for Leave', genericForm([
-      {label:'Employee', type:'select', options:['Ramesh Patel','Priya Sharma','Ankit Mehta','Vijay Kumar']},
-      {label:'Leave Type', type:'select', options:['Annual Leave','Sick Leave','Casual Leave','Compensatory Off']},
-      {label:'From Date', type:'date', value:'2025-05-20'},
-      {label:'To Date', type:'date', value:'2025-05-20'},
-      {label:'Reason', type:'textarea', placeholder:'Reason for leave'}
-    ]));
-  });
-
-  var runPayrollBtn = document.getElementById('runPayrollBtn');
-  if (runPayrollBtn) runPayrollBtn.addEventListener('click', function() { toast('Payroll run completed. Net payable: ₹1.24Cr', 'success'); });
-
-  var postJobBtn = document.getElementById('postJobBtn');
-  if (postJobBtn) postJobBtn.addEventListener('click', function() {
-    openModal('Post Job Opening', genericForm([
-      {label:'Job Title', type:'text', placeholder:'e.g. QC Engineer'},
-      {label:'Department', type:'select', options:['Quality','Manufacturing','Finance','Sales','IT']},
-      {label:'Experience Required', type:'text', placeholder:'e.g. 3-5 years'},
-      {label:'Priority', type:'select', options:['High','Medium','Low']}
-    ]));
-  });
-
-  var newProdBtn = document.getElementById('newProdBtn');
-  if (newProdBtn) newProdBtn.addEventListener('click', function() {
-    openModal('New Production Order', genericForm([
-      {label:'Product', type:'select', options:['FG-001 600W Module','FG-002 595W Module','FG-003 580W Bifacial']},
-      {label:'Quantity', type:'number', placeholder:'Units to produce'},
-      {label:'Production Line', type:'select', options:['Line 1','Line 2','Line 4']},
-      {label:'Planned Date', type:'date', value:'2025-05-16'}
-    ]));
-  });
-
-  // ── SETTINGS / PROFILE ──
-  var saveCompanyBtn = document.getElementById('saveCompanyBtn');
-  if (saveCompanyBtn) saveCompanyBtn.addEventListener('click', function() { toast('Company profile saved', 'success'); });
-
-  var saveProfileBtn = document.getElementById('saveProfileBtn');
-  if (saveProfileBtn) saveProfileBtn.addEventListener('click', function() { toast('Profile updated successfully', 'success'); });
-
-  var changePwdBtn = document.getElementById('changePwdBtn');
-  if (changePwdBtn) changePwdBtn.addEventListener('click', function() { toast('Password changed successfully', 'success'); });
-
-  var adjustStockBtn = document.getElementById('adjustStockBtn');
-  if (adjustStockBtn) adjustStockBtn.addEventListener('click', function() {
-    openModal('Stock Adjustment', genericForm([
-      {label:'Item', type:'select', options:['RM-003 EVA Film','RM-005 Ribbon Wire','RM-001 Solar Cells']},
-      {label:'Adjustment Type', type:'select', options:['Add Stock','Remove Stock']},
-      {label:'Quantity', type:'number', placeholder:'Qty'},
-      {label:'Reason', type:'text', placeholder:'Reason for adjustment'}
-    ]));
-  });
-
-  // ── INIT TABS ──
-  initPODetailTabs();
-  initGLTabs();
-  initSettingsTabs();
+  // ── STARTUP ──
+  if (authToken) {
+    // verify token is still valid
+    api('/auth/me').then(function(r) {
+      currentUser = r.user;
+      localStorage.setItem('solar_user', JSON.stringify(currentUser));
+      showApp();
+    }).catch(function() {
+      logout();
+    });
+  } else {
+    showAuth();
+  }
 });
 </script>
 </body>

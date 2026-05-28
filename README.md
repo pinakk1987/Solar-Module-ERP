@@ -2,7 +2,7 @@
 
 SolarOS ERP is a solar module manufacturing ERP prototype with:
 
-- Static frontend: `index.html`
+- Frontend SPA: `index.html` (fully wired to backend API)
 - Backend API: `backend/`
 - Local development database: `backend/prisma/solaros-local.db`
 
@@ -33,6 +33,7 @@ npm install
 npm run prisma:generate:sqlite
 npm run sqlite:create
 npm run seed
+npx tsx src/db/seed-bulk.ts
 npm run build
 ```
 
