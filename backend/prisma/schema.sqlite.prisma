@@ -1,0 +1,775 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id        String    @id @default(cuid())
+  name      String
+  legalName String?
+  gstin     String?
+  pan       String?
+  address   String?
+  users     User[]
+  settings  Setting[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model User {
+  id              String           @id @default(cuid())
+  companyId       String?
+  company         Company?         @relation(fields: [companyId], references: [id])
+  employeeId      String?          @unique
+  employee        Employee?        @relation(fields: [employeeId], references: [id])
+  email           String           @unique
+  passwordHash    String
+  name            String
+  role            String         @default("VIEWER")
+  active          Boolean          @default(true)
+  approvals       Approval[]
+  notifications   Notification[]
+  aiConversations AiConversation[]
+  auditLogs       AuditLog[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Item {
+  id                    String                    @id @default(cuid())
+  code                  String                    @unique
+  description           String
+  category              String
+  uom                   String
+  hsnCode               String?
+  gstRate               Decimal                   @default(0) 
+  reorderLevel          Decimal?                  
+  isActive              Boolean                   @default(true)
+  stockBatches          StockBatch[]
+  stockMovements        StockMovement[]
+  purchaseReqLines      PurchaseRequisitionLine[]
+  rfqLines              RfqLine[]
+  purchaseOrderLines    PurchaseOrderLine[]
+  grnLines              GrnLine[]
+  iqcInspections        IqcInspection[]
+  fqcInspections        FqcInspection[]
+  salesOrderLines       SalesOrderLine[]
+  bomOutputs            Bom[]                     @relation("BomOutputItem")
+  bomComponents         BomLine[]                 @relation("BomComponentItem")
+  productionOrders      ProductionOrder[]
+  cycleCountLines       CycleCountLine[]
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+}
+
+model Vendor {
+  id               String              @id @default(cuid())
+  code             String              @unique
+  name             String
+  category         String?
+  city             String?
+  phone            String?
+  email            String?
+  gstin            String?
+  status           String        @default("APPROVED")
+  onTimeDelivery   Decimal             @default(0) 
+  rating           Decimal             @default(0) 
+  purchaseOrders   PurchaseOrder[]
+  goodsReceipts    GoodsReceipt[]
+  iqcInspections   IqcInspection[]
+  vendorInvoices   VendorInvoice[]
+  apPayments       ApPayment[]
+  scorecards       SupplierScorecard[]
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+}
+
+model Customer {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  name        String
+  city        String?
+  phone       String?
+  email       String?
+  gstin       String?
+  creditLimit Decimal      @default(0) 
+  isActive    Boolean      @default(true)
+  salesOrders SalesOrder[]
+  arInvoices  ArInvoice[]
+  arPayments  ArPayment[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Warehouse {
+  id              String              @id @default(cuid())
+  code            String              @unique
+  name            String
+  location        String?
+  stockBatches    StockBatch[]
+  fromMovements   StockMovement[]     @relation("FromWarehouse")
+  toMovements     StockMovement[]     @relation("ToWarehouse")
+  fromTransfers   WarehouseTransfer[] @relation("TransferFromWarehouse")
+  toTransfers     WarehouseTransfer[] @relation("TransferToWarehouse")
+  cycleCounts     CycleCount[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+}
+
+model StockBatch {
+  id           String          @id @default(cuid())
+  itemId       String
+  item         Item            @relation(fields: [itemId], references: [id])
+  warehouseId  String
+  warehouse    Warehouse       @relation(fields: [warehouseId], references: [id])
+  batchNo      String
+  quantity     Decimal         @default(0) 
+  unitCost     Decimal         @default(0) 
+  receivedAt   DateTime?
+  expiryAt     DateTime?
+  status       String          @default("AVAILABLE")
+  movements    StockMovement[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([itemId, warehouseId, batchNo])
+}
+
+model StockMovement {
+  id              String        @id @default(cuid())
+  itemId          String
+  item            Item          @relation(fields: [itemId], references: [id])
+  stockBatchId    String?
+  stockBatch      StockBatch?   @relation(fields: [stockBatchId], references: [id])
+  movementType    String
+  quantity        Decimal       
+  fromWarehouseId String?
+  fromWarehouse   Warehouse?    @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String?
+  toWarehouse     Warehouse?    @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  referenceType   String?
+  referenceNo     String?
+  notes           String?
+  movedAt         DateTime      @default(now())
+  createdAt       DateTime      @default(now())
+}
+
+model PurchaseRequisition {
+  id           String                    @id @default(cuid())
+  prNo         String                    @unique
+  requestedBy  String?
+  requiredBy   DateTime?
+  source       String?
+  status       String            @default("PENDING_APPROVAL")
+  lines        PurchaseRequisitionLine[]
+  rfqs         Rfq[]
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+}
+
+model PurchaseRequisitionLine {
+  id                    String              @id @default(cuid())
+  purchaseRequisitionId String
+  purchaseRequisition   PurchaseRequisition @relation(fields: [purchaseRequisitionId], references: [id])
+  itemId                String
+  item                  Item                @relation(fields: [itemId], references: [id])
+  quantity              Decimal             
+  requiredBy            DateTime?
+  notes                 String?
+}
+
+model Rfq {
+  id                    String                @id @default(cuid())
+  rfqNo                 String                @unique
+  purchaseRequisitionId String?
+  purchaseRequisition   PurchaseRequisition?  @relation(fields: [purchaseRequisitionId], references: [id])
+  vendorId              String?
+  vendorName            String?
+  dueAt                 DateTime?
+  status                String        @default("OPEN")
+  lines                 RfqLine[]
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+}
+
+model RfqLine {
+  id        String  @id @default(cuid())
+  rfqId     String
+  rfq       Rfq     @relation(fields: [rfqId], references: [id])
+  itemId    String
+  item      Item    @relation(fields: [itemId], references: [id])
+  quantity  Decimal 
+  targetRate Decimal? 
+}
+
+model PurchaseOrder {
+  id             String              @id @default(cuid())
+  poNo           String              @unique
+  vendorId       String
+  vendor         Vendor              @relation(fields: [vendorId], references: [id])
+  poDate         DateTime
+  deliveryDate   DateTime?
+  status         String      @default("PENDING_APPROVAL")
+  currency       String              @default("INR")
+  subtotal       Decimal             @default(0) 
+  taxAmount      Decimal             @default(0) 
+  totalAmount    Decimal             @default(0) 
+  aiRisk         String?
+  lines          PurchaseOrderLine[]
+  goodsReceipts  GoodsReceipt[]
+  vendorInvoices VendorInvoice[]
+  apPayments     ApPayment[]
+  approvals      Approval[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+model PurchaseOrderLine {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  itemId          String
+  item            Item          @relation(fields: [itemId], references: [id])
+  quantity        Decimal       
+  receivedQty     Decimal       @default(0) 
+  unitPrice       Decimal       
+  taxRate         Decimal       @default(0) 
+  lineTotal       Decimal       @default(0) 
+}
+
+model GoodsReceipt {
+  id              String          @id @default(cuid())
+  grnNo           String          @unique
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id])
+  vendorId        String
+  vendor          Vendor          @relation(fields: [vendorId], references: [id])
+  receivedAt      DateTime        @default(now())
+  status          String  @default("PENDING_IQC")
+  vehicleNo       String?
+  lrNo            String?
+  lines           GrnLine[]
+  iqcInspections  IqcInspection[]
+  vendorInvoices  VendorInvoice[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model GrnLine {
+  id             String       @id @default(cuid())
+  goodsReceiptId String
+  goodsReceipt   GoodsReceipt @relation(fields: [goodsReceiptId], references: [id])
+  itemId         String
+  item           Item         @relation(fields: [itemId], references: [id])
+  batchNo        String?
+  quantity       Decimal      
+  acceptedQty    Decimal      @default(0) 
+  rejectedQty    Decimal      @default(0) 
+}
+
+model IqcInspection {
+  id             String        @id @default(cuid())
+  iqcNo          String        @unique
+  goodsReceiptId String
+  goodsReceipt   GoodsReceipt  @relation(fields: [goodsReceiptId], references: [id])
+  itemId         String
+  item           Item          @relation(fields: [itemId], references: [id])
+  vendorId       String?
+  vendor         Vendor?       @relation(fields: [vendorId], references: [id])
+  inspector      String?
+  quantity       Decimal       
+  result         String @default("PENDING")
+  remarks        String?
+  inspectedAt    DateTime?
+  ncrs           Ncr[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model FqcInspection {
+  id                String        @id @default(cuid())
+  fqcNo             String        @unique
+  itemId            String
+  item              Item          @relation(fields: [itemId], references: [id])
+  serialNo          String?
+  productionOrderNo String?
+  flashPowerWatts   Decimal?      
+  result            String @default("PENDING")
+  remarks           String?
+  inspectedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+}
+
+model Ncr {
+  id              String         @id @default(cuid())
+  ncrNo           String         @unique
+  iqcInspectionId String?
+  iqcInspection   IqcInspection? @relation(fields: [iqcInspectionId], references: [id])
+  severity        String         @default("MEDIUM")
+  description     String
+  disposition     String?
+  status          String @default("OPEN")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model VendorInvoice {
+  id              String         @id @default(cuid())
+  invoiceNo       String
+  vendorId        String
+  vendor          Vendor         @relation(fields: [vendorId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  goodsReceiptId  String?
+  goodsReceipt    GoodsReceipt?  @relation(fields: [goodsReceiptId], references: [id])
+  invoiceDate     DateTime
+  amount          Decimal        
+  varianceAmount  Decimal        @default(0) 
+  matchStatus     String         @default("PENDING")
+  paymentStatus   String  @default("PENDING")
+  apPayments      ApPayment[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([vendorId, invoiceNo])
+}
+
+model ApPayment {
+  id              String         @id @default(cuid())
+  paymentNo       String         @unique
+  vendorId        String
+  vendor          Vendor         @relation(fields: [vendorId], references: [id])
+  vendorInvoiceId String?
+  vendorInvoice   VendorInvoice? @relation(fields: [vendorInvoiceId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  paymentDate     DateTime
+  amount          Decimal        
+  mode            String
+  bankReference   String?
+  status          String  @default("PAID")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model SupplierScorecard {
+  id             String   @id @default(cuid())
+  vendorId       String
+  vendor         Vendor   @relation(fields: [vendorId], references: [id])
+  period         String
+  qualityScore   Decimal  @default(0) 
+  deliveryScore  Decimal  @default(0) 
+  costScore      Decimal  @default(0) 
+  overallScore   Decimal  @default(0) 
+  notes          String?
+  createdAt      DateTime @default(now())
+}
+
+model WarehouseTransfer {
+  id              String         @id @default(cuid())
+  transferNo      String         @unique
+  fromWarehouseId String
+  fromWarehouse   Warehouse      @relation("TransferFromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId   String
+  toWarehouse     Warehouse      @relation("TransferToWarehouse", fields: [toWarehouseId], references: [id])
+  status          String @default("OPEN")
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model CycleCount {
+  id           String           @id @default(cuid())
+  countNo      String           @unique
+  warehouseId  String
+  warehouse    Warehouse        @relation(fields: [warehouseId], references: [id])
+  countDate    DateTime
+  status       String   @default("OPEN")
+  countedBy    String?
+  lines        CycleCountLine[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model CycleCountLine {
+  id          String     @id @default(cuid())
+  cycleCountId String
+  cycleCount CycleCount  @relation(fields: [cycleCountId], references: [id])
+  itemId      String
+  item        Item       @relation(fields: [itemId], references: [id])
+  systemQty   Decimal    
+  countedQty  Decimal    
+  varianceQty Decimal    
+}
+
+model Bom {
+  id           String    @id @default(cuid())
+  bomNo        String    @unique
+  outputItemId String
+  outputItem   Item      @relation("BomOutputItem", fields: [outputItemId], references: [id])
+  version      String    @default("1")
+  isActive     Boolean   @default(true)
+  lines        BomLine[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model BomLine {
+  id              String  @id @default(cuid())
+  bomId           String
+  bom             Bom     @relation(fields: [bomId], references: [id])
+  componentItemId String
+  componentItem   Item    @relation("BomComponentItem", fields: [componentItemId], references: [id])
+  quantity        Decimal 
+  scrapPercent    Decimal @default(0) 
+}
+
+model ProductionOrder {
+  id             String           @id @default(cuid())
+  orderNo        String           @unique
+  itemId         String
+  item           Item             @relation(fields: [itemId], references: [id])
+  plannedQty     Decimal          
+  producedQty    Decimal          @default(0) 
+  lineName       String
+  plannedDate    DateTime?
+  status         String @default("PLANNED")
+  workOrders     WorkOrder[]
+  oeeLogs        OeeLog[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model WorkOrder {
+  id                String           @id @default(cuid())
+  workOrderNo       String           @unique
+  productionOrderId String
+  productionOrder   ProductionOrder  @relation(fields: [productionOrderId], references: [id])
+  station           String?
+  status            String @default("RELEASED")
+  assignedTo        String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+}
+
+model OeeLog {
+  id                String           @id @default(cuid())
+  productionOrderId String?
+  productionOrder   ProductionOrder? @relation(fields: [productionOrderId], references: [id])
+  lineName          String
+  logDate           DateTime
+  availability      Decimal          
+  performance       Decimal          
+  quality           Decimal          
+  oee               Decimal          
+  downtimeMinutes   Int              @default(0)
+  notes             String?
+  createdAt         DateTime         @default(now())
+}
+
+model SalesOrder {
+  id            String           @id @default(cuid())
+  soNo          String           @unique
+  customerId    String
+  customer      Customer         @relation(fields: [customerId], references: [id])
+  orderDate     DateTime
+  deliveryDate  DateTime?
+  status        String   @default("OPEN")
+  totalAmount   Decimal          @default(0) 
+  lines         SalesOrderLine[]
+  dispatches    Dispatch[]
+  arInvoices    ArInvoice[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model SalesOrderLine {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id])
+  itemId       String
+  item         Item       @relation(fields: [itemId], references: [id])
+  quantity     Decimal    
+  dispatchedQty Decimal   @default(0) 
+  unitPrice    Decimal    
+  lineTotal    Decimal    @default(0) 
+}
+
+model Dispatch {
+  id            String         @id @default(cuid())
+  dispatchNo    String         @unique
+  salesOrderId  String
+  salesOrder    SalesOrder     @relation(fields: [salesOrderId], references: [id])
+  customerName  String
+  quantity      Decimal        
+  transporter   String?
+  lrNo          String?
+  status        String @default("OPEN")
+  dispatchedAt  DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model ArInvoice {
+  id           String        @id @default(cuid())
+  invoiceNo    String        @unique
+  customerId   String
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  salesOrderId String?
+  salesOrder   SalesOrder?   @relation(fields: [salesOrderId], references: [id])
+  invoiceDate  DateTime
+  amount       Decimal       
+  status       String @default("PENDING")
+  arPayments   ArPayment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model ArPayment {
+  id            String        @id @default(cuid())
+  receiptNo     String        @unique
+  customerId    String
+  customer      Customer      @relation(fields: [customerId], references: [id])
+  arInvoiceId   String?
+  arInvoice     ArInvoice?    @relation(fields: [arInvoiceId], references: [id])
+  receiptDate   DateTime
+  amount        Decimal       
+  mode          String
+  bankReference String?
+  status        String @default("PAID")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Account {
+  id           String        @id @default(cuid())
+  code         String        @unique
+  name         String
+  type         String
+  openingDr    Decimal       @default(0) 
+  openingCr    Decimal       @default(0) 
+  journalLines JournalLine[]
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model JournalEntry {
+  id          String        @id @default(cuid())
+  jeNo        String        @unique
+  entryDate   DateTime
+  entryType   String
+  description String
+  amount      Decimal       
+  status      String @default("DRAFT")
+  postedBy    String?
+  postedAt    DateTime?
+  lines       JournalLine[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model JournalLine {
+  id             String       @id @default(cuid())
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id])
+  accountId      String
+  account        Account      @relation(fields: [accountId], references: [id])
+  debit          Decimal      @default(0) 
+  credit         Decimal      @default(0) 
+  memo           String?
+}
+
+model BankReconciliation {
+  id             String         @id @default(cuid())
+  reconNo        String         @unique
+  bankAccount    String
+  statementDate  DateTime
+  bookBalance    Decimal        
+  bankBalance    Decimal        
+  varianceAmount Decimal        @default(0) 
+  status         String @default("OPEN")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Budget {
+  id          String   @id @default(cuid())
+  period      String
+  department  String
+  accountCode String
+  budgetAmount Decimal 
+  actualAmount Decimal @default(0) 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model TaxReport {
+  id          String         @id @default(cuid())
+  reportNo    String         @unique
+  period      String
+  reportType  String
+  status      String @default("DRAFT")
+  taxableValue Decimal       @default(0) 
+  taxAmount   Decimal        @default(0) 
+  filedAt     DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Employee {
+  id          String          @id @default(cuid())
+  empNo       String          @unique
+  fullName    String
+  department  String
+  role        String
+  shift       String?
+  email       String?
+  phone       String?
+  status      String  @default("PRESENT")
+  user        User?
+  attendances Attendance[]
+  leaveRequests LeaveRequest[]
+  payrollLines PayrollLine[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model Attendance {
+  id         String         @id @default(cuid())
+  employeeId String
+  employee   Employee       @relation(fields: [employeeId], references: [id])
+  workDate   DateTime
+  status     String @default("PRESENT")
+  checkIn    DateTime?
+  checkOut   DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@unique([employeeId, workDate])
+}
+
+model LeaveRequest {
+  id          String      @id @default(cuid())
+  employeeId  String
+  employee    Employee    @relation(fields: [employeeId], references: [id])
+  leaveType   String
+  fromDate    DateTime
+  toDate      DateTime
+  reason      String?
+  status      String @default("PENDING")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model PayrollRun {
+  id          String        @id @default(cuid())
+  payrollNo   String        @unique
+  period      String
+  status      String @default("DRAFT")
+  grossAmount Decimal       @default(0) 
+  netAmount   Decimal       @default(0) 
+  lines       PayrollLine[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model PayrollLine {
+  id            String     @id @default(cuid())
+  payrollRunId  String
+  payrollRun    PayrollRun @relation(fields: [payrollRunId], references: [id])
+  employeeId    String
+  employee      Employee   @relation(fields: [employeeId], references: [id])
+  grossAmount   Decimal    
+  deductions    Decimal    @default(0) 
+  netAmount     Decimal    
+}
+
+model RecruitmentJob {
+  id          String         @id @default(cuid())
+  jobNo       String         @unique
+  title       String
+  department  String
+  experience  String?
+  priority    String         @default("MEDIUM")
+  status      String @default("OPEN")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model Approval {
+  id              String         @id @default(cuid())
+  approverId      String?
+  approver        User?          @relation(fields: [approverId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  documentType    String
+  documentNo      String
+  status          String @default("PENDING")
+  comments        String?
+  actedAt         DateTime?
+  createdAt       DateTime       @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  severity  String   @default("INFO")
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+model AiConversation {
+  id        String      @id @default(cuid())
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id])
+  title     String?
+  messages  AiMessage[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model AiMessage {
+  id               String         @id @default(cuid())
+  aiConversationId String
+  aiConversation   AiConversation @relation(fields: [aiConversationId], references: [id])
+  role             String
+  content          String
+  createdAt        DateTime       @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  before     String?
+  after      String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}
+
+model Setting {
+  id        String   @id @default(cuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, key])
+}
+

@@ -1,12 +1,1349 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="refresh" content="0; url=/solar-erp/solar-erp.html">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Redirecting…</title>
-  </head>
-  <body>
-    Redirecting to <a href="/solar-erp/solar-erp.html">solar-erp.html</a>.
-  </body>
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SolarOS ERP</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--navy:#0B1F3A;--navy2:#132d52;--blue:#1565C0;--blue2:#1976D2;--blue-lt:#E3F2FD;--blue-mid:#BBDEFB;
+--white:#FFFFFF;--bg:#F5F7FA;--bg2:#EEF2F7;--bg3:#E8EDF4;--bd:#D6DFEA;--bd2:#C5D0DE;
+--text:#1F2937;--t2:#4B5563;--t3:#9CA3AF;
+--green:#16A34A;--green-lt:#DCFCE7;--green-bd:#86EFAC;
+--amber:#D97706;--amber-lt:#FEF3C7;--amber-bd:#FCD34D;
+--red:#DC2626;--red-lt:#FEE2E2;--red-bd:#FCA5A5;
+--purple:#7C3AED;--purple-lt:#EDE9FE;--purple-bd:#C4B5FD;
+--cyan:#0369A1;--cyan-lt:#E0F2FE;--cyan-bd:#7DD3FC;
+--shadow:0 1px 3px rgba(0,0,0,.08);--shadow2:0 4px 12px rgba(0,0,0,.1);
+--r:6px;--r2:10px;--fui:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--fui);font-size:13px;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+/* TOAST */
+#toastWrap{position:fixed;top:60px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--white);border:1px solid var(--bd);border-left:4px solid var(--blue);border-radius:var(--r);padding:10px 16px;box-shadow:var(--shadow2);font-size:12px;min-width:260px;opacity:0;transform:translateX(40px);transition:.3s;pointer-events:all}
+.toast.show{opacity:1;transform:none}
+.toast.toast-success{border-left-color:var(--green)}
+.toast.toast-error{border-left-color:var(--red)}
+.toast.toast-warn{border-left-color:var(--amber)}
+/* AUTH */
+#auth{display:flex;align-items:center;justify-content:center;height:100vh;background:linear-gradient(135deg,#0B1F3A 0%,#1565C0 100%)}
+.auth-box{background:var(--white);border-radius:var(--r2);padding:40px;width:400px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.auth-logo{font-size:24px;font-weight:800;letter-spacing:2px;color:var(--navy)}
+.auth-logo span{color:var(--blue)}
+.auth-sub{color:var(--t3);font-size:11px;margin-bottom:28px;letter-spacing:.5px}
+.inp{width:100%;background:var(--white);border:1px solid var(--bd);border-radius:var(--r);padding:9px 12px;color:var(--text);font-size:13px;margin-bottom:12px;outline:none;transition:.2s;font-family:var(--fui)}
+.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(21,101,192,.1)}
+select.inp{cursor:pointer}textarea.inp{resize:vertical;min-height:70px;font-family:var(--fui)}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--r);border:none;cursor:pointer;font-size:12px;font-weight:600;transition:.15s;font-family:var(--fui);white-space:nowrap}
+.btn-primary{background:var(--blue);color:#fff}.btn-primary:hover{background:var(--blue2)}
+.btn-ghost{background:var(--white);color:var(--t2);border:1px solid var(--bd)}.btn-ghost:hover{background:var(--bg);color:var(--text)}
+.btn-navy{background:var(--navy);color:#fff}.btn-navy:hover{background:var(--navy2)}
+.btn-success{background:var(--green-lt);color:var(--green);border:1px solid var(--green-bd)}
+.btn-danger{background:var(--red-lt);color:var(--red);border:1px solid var(--red-bd)}
+.btn-warn{background:var(--amber-lt);color:var(--amber);border:1px solid var(--amber-bd)}
+.btn-sm{padding:5px 10px;font-size:11px}.btn-xs{padding:3px 8px;font-size:10px}
+.w100{width:100%}.lnk{color:var(--blue);background:none;border:none;cursor:pointer;font-size:12px;font-weight:500}
+/* APP */
+#app{display:none;flex-direction:column;height:100vh}
+.topbar{display:flex;align-items:center;gap:12px;background:var(--white);border-bottom:1px solid var(--bd);padding:0 20px;height:52px;flex-shrink:0;z-index:100;box-shadow:var(--shadow)}
+.topbar-logo{font-weight:800;font-size:17px;letter-spacing:1.5px;color:var(--navy);cursor:pointer;display:flex;align-items:center;gap:8px}
+.topbar-logo-icon{background:var(--blue);color:#fff;width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.topbar-search{flex:1;max-width:340px;background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:7px 14px;color:var(--text);font-size:12px;outline:none}
+.topbar-search:focus{border-color:var(--blue)}
+.topbar-right{display:flex;align-items:center;gap:6px;margin-left:auto}
+.icon-btn{background:none;border:1px solid transparent;color:var(--t3);cursor:pointer;padding:6px 8px;border-radius:var(--r);font-size:14px;transition:.15s;position:relative}
+.icon-btn:hover{background:var(--bg);color:var(--text)}
+.badge-dot{position:absolute;top:4px;right:4px;width:7px;height:7px;background:var(--red);border-radius:50%;border:2px solid var(--white)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;cursor:pointer}
+.env-badge{background:var(--blue-lt);color:var(--blue);border:1px solid var(--blue-mid);border-radius:12px;padding:3px 10px;font-size:10px;font-weight:600}
+.app-body{display:flex;flex:1;overflow:hidden}
+/* SIDEBAR */
+.sidebar{width:228px;background:var(--navy);display:flex;flex-direction:column;overflow-y:auto;flex-shrink:0;transition:width .2s}
+.sidebar.collapsed{width:52px}
+.sidebar-user{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;align-items:center;gap:10px}
+.sidebar.collapsed .sidebar-user{padding:12px;justify-content:center}
+.s-avatar{width:34px;height:34px;border-radius:50%;background:var(--blue2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.s-user-info{overflow:hidden}
+.s-user-name{font-size:12px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-user-role{font-size:10px;color:rgba(255,255,255,.5)}
+.sidebar.collapsed .s-user-info{display:none}
+.nav-section{padding:4px 0}
+.nav-label{font-size:9px;letter-spacing:2px;color:rgba(255,255,255,.35);padding:8px 16px 3px;text-transform:uppercase;white-space:nowrap}
+.sidebar.collapsed .nav-label{opacity:0;height:0;padding:0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;color:rgba(255,255,255,.65);transition:.15s;position:relative}
+.nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav-item.active{background:rgba(21,101,192,.45);color:#fff}
+.nav-item.active::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:3px;background:var(--blue-mid);border-radius:0 2px 2px 0}
+.nav-icon{font-size:15px;flex-shrink:0;width:20px;text-align:center}
+.nav-text{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden}
+.sidebar.collapsed .nav-text,.sidebar.collapsed .nav-arrow{display:none}
+.nav-arrow{margin-left:auto;font-size:10px;color:rgba(255,255,255,.4);transition:transform .2s;flex-shrink:0}
+.nav-sub{display:none;background:rgba(0,0,0,.15)}
+.nav-sub.open{display:block}
+.nav-sub-item{padding:7px 16px 7px 46px;cursor:pointer;color:rgba(255,255,255,.55);font-size:11px;font-weight:500;transition:.15s}
+.nav-sub-item:hover{color:#fff;background:rgba(255,255,255,.06)}
+.nav-sub-item.active{color:var(--blue-mid)}
+.sidebar.collapsed .nav-sub{display:none!important}
+/* CONTENT */
+.content{flex:1;overflow-y:auto;background:var(--bg)}
+.page{display:none;padding:20px;animation:fadein .18s}
+.page.active{display:block}
+@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+/* PAGE HEADER */
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+.page-title{font-size:20px;font-weight:700;color:var(--navy);letter-spacing:-.3px}
+.page-sub{color:var(--t3);font-size:11px;margin-top:3px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.breadcrumb{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t3);margin-bottom:12px}
+.breadcrumb span{cursor:pointer}.breadcrumb span:hover{color:var(--blue)}
+.breadcrumb-sep{color:var(--bd2)}
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--white);border:1px solid var(--bd);border-radius:var(--r2);padding:16px;cursor:pointer;transition:.15s;position:relative;overflow:hidden}
+.kpi:hover{border-color:var(--blue);box-shadow:var(--shadow2);transform:translateY(-1px)}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--blue);opacity:0;transition:.15s}
+.kpi:hover::after{opacity:1}
+.kpi-label{font-size:10px;color:var(--t3);letter-spacing:.8px;text-transform:uppercase;font-weight:600;margin-bottom:8px}
+.kpi-val{font-size:24px;font-weight:700;color:var(--navy);line-height:1}
+.kpi-delta{font-size:10px;margin-top:6px;font-weight:500}
+.kpi-icon{position:absolute;right:14px;top:14px;font-size:22px;opacity:.12}
+.delta-up{color:var(--green)}.delta-dn{color:var(--red)}
+.kpi-blue .kpi-val{color:var(--blue)}.kpi-green .kpi-val{color:var(--green)}.kpi-red .kpi-val{color:var(--red)}.kpi-amber .kpi-val{color:var(--amber)}
+/* CARD */
+.card{background:var(--white);border:1px solid var(--bd);border-radius:var(--r2);padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.card-title{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.card-title .card-actions{margin-left:auto;display:flex;gap:6px}
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:6px;border:1px solid var(--bd)}
+table{width:100%;border-collapse:collapse;background:var(--white)}
+thead{background:var(--bg2)}
+th{color:var(--t2);font-size:10px;letter-spacing:.8px;text-transform:uppercase;padding:9px 14px;text-align:left;border-bottom:1px solid var(--bd);font-weight:700;white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--bg3);font-size:12px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--blue-lt)}
+.tbl-link{color:var(--blue);font-weight:600;cursor:pointer}.tbl-link:hover{text-decoration:underline}
+/* BADGES */
+.tag{display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:700;white-space:nowrap}
+.tag-green{background:var(--green-lt);color:var(--green);border:1px solid var(--green-bd)}
+.tag-red{background:var(--red-lt);color:var(--red);border:1px solid var(--red-bd)}
+.tag-amber{background:var(--amber-lt);color:var(--amber);border:1px solid var(--amber-bd)}
+.tag-blue{background:var(--blue-lt);color:var(--blue);border:1px solid var(--blue-mid)}
+.tag-navy{background:rgba(11,31,58,.08);color:var(--navy);border:1px solid rgba(11,31,58,.2)}
+.tag-purple{background:var(--purple-lt);color:var(--purple);border:1px solid var(--purple-bd)}
+.tag-gray{background:var(--bg2);color:var(--t2);border:1px solid var(--bd)}
+.tag-cyan{background:var(--cyan-lt);color:var(--cyan);border:1px solid var(--cyan-bd)}
+/* TABS */
+.tabs{display:flex;border-bottom:2px solid var(--bd);margin-bottom:16px;overflow-x:auto;flex-shrink:0}
+.tab{padding:9px 18px;cursor:pointer;color:var(--t3);font-size:12px;font-weight:600;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s;white-space:nowrap}
+.tab:hover{color:var(--blue)}.tab.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(11,31,58,.45);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.overlay.open{display:flex}
+.modal{background:var(--white);border:1px solid var(--bd);border-radius:var(--r2);width:620px;max-width:100%;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-header{padding:14px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;background:var(--bg);flex-shrink:0}
+.modal-title{font-size:15px;font-weight:700;color:var(--navy)}
+.modal-body{padding:20px;overflow-y:auto;flex:1}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:8px;background:var(--bg);flex-shrink:0}
+/* FORMS */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-group{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.form-label{font-size:11px;color:var(--t2);font-weight:700}
+/* NOTIF */
+.notif-panel{position:absolute;top:52px;right:8px;width:320px;background:var(--white);border:1px solid var(--bd);border-radius:var(--r2);z-index:200;box-shadow:var(--shadow2);display:none}
+.notif-panel.open{display:block}
+.notif-item{padding:11px 16px;border-bottom:1px solid var(--bg3);cursor:pointer;transition:.15s;display:flex;gap:10px}
+.notif-item:hover{background:var(--blue-lt)}
+.notif-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);margin-top:4px;flex-shrink:0}
+/* GRID */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px}
+/* SEARCH ROW */
+.search-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.search-row .inp{margin:0;flex:1;min-width:160px;max-width:260px}
+select.filter{background:var(--white);border:1px solid var(--bd);border-radius:var(--r);padding:8px 10px;color:var(--text);font-size:12px;outline:none;cursor:pointer;font-family:var(--fui)}
+/* PROGRESS */
+.prog-bar{background:var(--bg2);border-radius:4px;height:6px;overflow:hidden}
+.prog-fill{height:100%;border-radius:4px;transition:.5s}
+/* TIMELINE */
+.timeline{display:flex;flex-direction:column}
+.tl-item{display:flex;gap:12px;padding:8px 0;position:relative}
+.tl-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.tl-line{position:absolute;left:4px;top:18px;bottom:-8px;width:2px;background:var(--bg3)}
+.tl-item:last-child .tl-line{display:none}
+.tl-text{font-size:12px;font-weight:600}.tl-meta{font-size:10px;color:var(--t3);margin-top:2px}
+/* ALERT */
+.alert{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--r);margin-bottom:14px;font-size:12px;font-weight:500}
+.alert-warn{background:var(--amber-lt);border:1px solid var(--amber-bd);color:var(--amber)}
+.alert-info{background:var(--blue-lt);border:1px solid var(--blue-mid);color:var(--blue)}
+.alert-error{background:var(--red-lt);border:1px solid var(--red-bd);color:var(--red)}
+.alert-success{background:var(--green-lt);border:1px solid var(--green-bd);color:var(--green)}
+/* STEPPER */
+.stepper{display:flex;align-items:center;gap:0;margin:16px 0;overflow-x:auto}
+.step{display:flex;align-items:center;gap:8px;flex:1;min-width:100px}
+.step-circle{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;border:2px solid var(--bd);background:var(--white);color:var(--t3)}
+.step-circle.done{background:var(--green);border-color:var(--green);color:#fff}
+.step-circle.active{background:var(--blue);border-color:var(--blue);color:#fff}
+.step-info{flex:1}.step-name{font-size:10px;font-weight:700}.step-sub{font-size:9px;color:var(--t3)}
+.step-line{height:2px;flex:1;background:var(--bd)}.step-line.done{background:var(--green)}
+/* WF BAR */
+.wf-bar{display:flex;align-items:center;gap:0;background:var(--bg2);border:1px solid var(--bd);border-radius:20px;padding:4px;margin-bottom:14px;overflow-x:auto}
+.wf-step{padding:5px 12px;border-radius:16px;font-size:10px;font-weight:700;color:var(--t3);white-space:nowrap}
+.wf-step.done{background:var(--green);color:#fff}.wf-step.current{background:var(--blue);color:#fff}
+.wf-arrow{color:var(--bd2);font-size:10px;flex-shrink:0}
+/* PIPELINE */
+.pipeline{display:flex;gap:0;overflow-x:auto;margin-bottom:16px}
+.pipe-stage{flex:1;padding:10px 12px;background:var(--bg2);border:1px solid var(--bd);border-right:none;font-size:11px;font-weight:600;color:var(--t2);text-align:center;cursor:pointer;transition:.15s;min-width:80px}
+.pipe-stage:first-child{border-radius:var(--r) 0 0 var(--r)}.pipe-stage:last-child{border-right:1px solid var(--bd);border-radius:0 var(--r) var(--r) 0}
+.pipe-stage.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.pipe-stage .pipe-count{font-size:16px;font-weight:700;display:block;margin-bottom:2px}
+/* CHART */
+.chart-bars{display:flex;align-items:flex-end;gap:6px;height:140px;padding:0 4px 24px}
+.bar-col{display:flex;flex-direction:column;align-items:center;flex:1;gap:4px;height:100%;justify-content:flex-end}
+.bar-fill{border-radius:3px 3px 0 0;width:100%;min-height:2px;transition:.4s}
+.bar-label{font-size:9px;color:var(--t3);white-space:nowrap;text-align:center}
+.bar-val{font-size:9px;color:var(--t2);font-weight:600}
+/* INFO ROW */
+.info-row{display:flex;padding:8px 0;border-bottom:1px solid var(--bg3)}
+.info-row:last-child{border-bottom:none}
+.info-label{font-size:11px;font-weight:700;color:var(--t2);width:150px;flex-shrink:0}
+.info-val{font-size:12px;color:var(--text);flex:1}
+/* SECTION TITLE */
+.section-title{font-size:11px;font-weight:800;color:var(--navy);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--blue-lt)}
+/* AI */
+.ai-chip{background:linear-gradient(135deg,var(--purple-lt),var(--blue-lt));border:1px solid var(--purple-bd);border-radius:20px;padding:3px 10px;font-size:10px;font-weight:700;color:var(--purple);display:inline-flex;align-items:center;gap:4px}
+.ai-insight{background:linear-gradient(135deg,#faf5ff,var(--blue-lt));border:1px solid var(--purple-bd);border-radius:var(--r);padding:12px;margin-bottom:10px;font-size:12px}
+.ai-insight-title{font-size:11px;font-weight:700;color:var(--purple);margin-bottom:4px}
+/* ATTACH */
+.attach-zone{border:2px dashed var(--bd);border-radius:var(--r);padding:20px;text-align:center;color:var(--t3);font-size:12px;cursor:pointer;transition:.15s}
+.attach-zone:hover{border-color:var(--blue);background:var(--blue-lt);color:var(--blue)}
+/* SPLIT PANEL */
+.split-panel{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+.detail-panel{background:var(--white);border:1px solid var(--bd);border-radius:var(--r2);overflow:hidden;box-shadow:var(--shadow);position:sticky;top:0}
+.detail-panel-header{padding:14px 16px;background:var(--navy);color:#fff;font-weight:700;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+.detail-panel-body{padding:16px}
+/* SCROLL */
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<div id="toastWrap"></div>
+
+<!-- AUTH -->
+<div id="auth">
+  <div class="auth-box" id="loginBox">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <div style="background:var(--navy);color:#fff;width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px">☀️</div>
+      <div><div class="auth-logo">SOLAR<span>OS</span></div><div class="auth-sub">ENTERPRISE ERP · v3.0</div></div>
+    </div>
+    <div style="background:var(--blue-lt);border-left:3px solid var(--blue);padding:8px 12px;border-radius:var(--r);margin-bottom:20px;font-size:11px;color:var(--blue)">🔒 Sign in with your corporate credentials</div>
+    <div class="form-group"><label class="form-label">EMAIL</label><input class="inp" id="loginEmail" type="email" value="admin@solaros.in" style="margin:0"></div>
+    <div class="form-group" style="margin-bottom:16px"><label class="form-label">PASSWORD</label><input class="inp" type="password" value="password123" style="margin:0"></div>
+    <button class="btn btn-primary w100" style="padding:11px;font-size:13px;justify-content:center" id="btnSignIn">Sign In →</button>
+    <div style="text-align:center;margin-top:12px"><button class="lnk" id="btnForgot">Forgot password?</button></div>
+    <div style="text-align:center;margin-top:10px;font-size:10px;color:var(--t3)">Protected by SolarOS SSO · Azure AD</div>
+  </div>
+  <div class="auth-box" id="forgotBox" style="display:none">
+    <div class="auth-logo" style="margin-bottom:4px">SOLAR<span>OS</span></div>
+    <div class="auth-sub">Reset your password</div>
+    <div class="form-group"><label class="form-label">REGISTERED EMAIL</label><input class="inp" placeholder="your@email.com" style="margin:0"></div>
+    <button class="btn btn-primary w100" id="btnSendReset" style="justify-content:center">Send Reset Link</button>
+    <div style="text-align:center;margin-top:12px"><button class="lnk" id="btnBackLogin">← Back to Sign In</button></div>
+  </div>
+  <div class="auth-box" id="mfaBox" style="display:none">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:36px;margin-bottom:8px">🔐</div>
+      <div style="font-size:16px;font-weight:700;color:var(--navy)">Two-Factor Authentication</div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">Enter the 6-digit code from your authenticator app</div>
+    </div>
+    <input class="inp" style="text-align:center;font-size:22px;letter-spacing:8px" maxlength="6" value="248163">
+    <button class="btn btn-primary w100" id="btnVerifyMFA" style="padding:11px;justify-content:center">✓ Verify &amp; Sign In</button>
+    <div style="text-align:center;margin-top:10px"><button class="lnk" id="btnMFABack">← Back</button></div>
+  </div>
+</div>
+
+<!-- NOTIF PANEL -->
+<div class="notif-panel" id="notifPanel">
+  <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center;background:var(--bg)">
+    <span style="font-weight:700;font-size:13px;color:var(--navy)">🔔 Notifications</span>
+    <button class="lnk" style="font-size:10px">Mark all read</button>
+  </div>
+  <div class="notif-item" id="ni1"><div class="notif-dot"></div><div><div style="font-size:12px;font-weight:600">PO #2490 awaiting approval</div><div style="font-size:10px;color:var(--t3)">₹4.8L · EVA Industries · 2 min ago</div></div></div>
+  <div class="notif-item"><div class="notif-dot" style="background:var(--red)"></div><div><div style="font-size:12px;font-weight:600">IQC Failed — Batch B-881</div><div style="font-size:10px;color:var(--t3)">Solar Cells · SolarTech · 1 hr ago</div></div></div>
+  <div class="notif-item"><div class="notif-dot" style="background:var(--amber)"></div><div><div style="font-size:12px;font-weight:600">⚠️ EVA Film below safety stock</div><div style="font-size:10px;color:var(--t3)">120 rolls vs 200 min · Act now</div></div></div>
+  <div class="notif-item"><div class="notif-dot" style="background:var(--green)"></div><div><div style="font-size:12px;font-weight:600">GRN #1193 created</div><div style="font-size:10px;color:var(--t3)">10,000 cells received · 2 hr ago</div></div></div>
+  <div class="notif-item"><div class="notif-dot" style="background:var(--purple)"></div><div><div style="font-size:12px;font-weight:600">🤖 AI: Demand surge predicted June</div><div style="font-size:10px;color:var(--t3)">+18% forecast · See AI Copilot</div></div></div>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="modal">
+  <div class="modal" id="modalBox">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle"></div>
+      <button class="btn btn-ghost btn-sm" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo" id="topLogo"><div class="topbar-logo-icon">☀</div>SOLAR<span style="color:var(--blue)">OS</span></div>
+    <button class="icon-btn" id="toggleSidebarBtn">☰</button>
+    <input class="topbar-search" placeholder="Search modules, records...">
+    <div class="topbar-right">
+      <div class="env-badge">PRODUCTION</div>
+      <button class="icon-btn" id="helpBtn">❓</button>
+      <button class="icon-btn" id="notifBtn">🔔<span class="badge-dot"></span></button>
+      <button class="icon-btn" id="settingsBtn">⚙️</button>
+      <div style="width:1px;height:22px;background:var(--bd);margin:0 4px"></div>
+      <div class="avatar" id="avatarBtn">AK</div>
+    </div>
+  </div>
+
+  <div class="app-body">
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-user">
+        <div class="s-avatar">AK</div>
+        <div class="s-user-info">
+          <div class="s-user-name">Amit Kumar</div>
+          <div class="s-user-role">Super Administrator</div>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Workspace</div>
+        <div class="nav-item active" data-page="dashboard"><span class="nav-icon">🏠</span><span class="nav-text">Dashboard</span></div>
+        <div class="nav-item" data-page="controlTower"><span class="nav-icon">🛰</span><span class="nav-text">Control Tower</span></div>
+        <div class="nav-item" data-page="aiCopilot"><span class="nav-icon">🤖</span><span class="nav-text">AI Copilot</span></div>
+        <div class="nav-item" data-page="reports"><span class="nav-icon">📊</span><span class="nav-text">Reports</span></div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Operations</div>
+        <div class="nav-item nav-parent" data-sub="subPurchase"><span class="nav-icon">🛒</span><span class="nav-text">Purchase</span><span class="nav-arrow">▸</span></div>
+        <div class="nav-sub" id="subPurchase">
+          <div class="nav-sub-item" data-page="rfq">📄 RFQ</div>
+          <div class="nav-sub-item" data-page="pr">📝 Purchase Requisition</div>
+          <div class="nav-sub-item" data-page="po">🛒 Purchase Orders</div>
+          <div class="nav-sub-item" data-page="grn">📥 GRN</div>
+          <div class="nav-sub-item" data-page="invoiceMatch">🔄 Invoice Matching</div>
+          <div class="nav-sub-item" data-page="apPayment">💳 AP Payments</div>
+          <div class="nav-sub-item" data-page="supplierScore">⭐ Supplier Scorecard</div>
+        </div>
+        <div class="nav-item nav-parent" data-sub="subInv"><span class="nav-icon">📦</span><span class="nav-text">Inventory</span><span class="nav-arrow">▸</span></div>
+        <div class="nav-sub" id="subInv">
+          <div class="nav-sub-item" data-page="stockOverview">📦 Stock Overview</div>
+          <div class="nav-sub-item" data-page="batchMgmt">🗂 Batch Management</div>
+          <div class="nav-sub-item" data-page="warehouseTransfer">🔁 Transfers</div>
+          <div class="nav-sub-item" data-page="cycleCount">🔢 Cycle Count</div>
+        </div>
+        <div class="nav-item nav-parent" data-sub="subProd"><span class="nav-icon">🏭</span><span class="nav-text">Production</span><span class="nav-arrow">▸</span></div>
+        <div class="nav-sub" id="subProd">
+          <div class="nav-sub-item" data-page="prodOrders">📋 Production Orders</div>
+          <div class="nav-sub-item" data-page="workOrders">⚙️ Work Orders</div>
+          <div class="nav-sub-item" data-page="oee">⚡ OEE Dashboard</div>
+        </div>
+        <div class="nav-item nav-parent" data-sub="subQuality"><span class="nav-icon">🔬</span><span class="nav-text">Quality</span><span class="nav-arrow">▸</span></div>
+        <div class="nav-sub" id="subQuality">
+          <div class="nav-sub-item" data-page="iqc">🔬 IQC</div>
+          <div class="nav-sub-item" data-page="fqc">⚡ FQC / Flash Test</div>
+          <div class="nav-sub-item" data-page="ncr">⚠️ NCR Management</div>
+        </div>
+        <div class="nav-item nav-parent" data-sub="subSales"><span class="nav-icon">💼</span><span class="nav-text">Sales</span><span class="nav-arrow">▸</span></div>
+        <div class="nav-sub" id="subSales">
+          <div class="nav-sub-item" data-page="salesOrders">💼 Sales Orders</div>
+          <div class="nav-sub-item" data-page="dispatch">🚚 Dispatch</div>
+          <div class="nav-sub-item" data-page="arInvoice">🧾 AR Invoice</div>
+          <div class="nav-sub-item" data-page="arPayment">💰 AR Payments</div>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Finance</div>
+        <div class="nav-item nav-parent" data-sub="subFin"><span class="nav-icon">💰</span><span class="nav-text">Finance</span><span class="nav-arrow">▸</span></div>
+        <div class="nav-sub" id="subFin">
+          <div class="nav-sub-item" data-page="finDashboard">📊 Dashboard</div>
+          <div class="nav-sub-item" data-page="gl">📒 General Ledger</div>
+          <div class="nav-sub-item" data-page="journalEntry">✏️ Journal Entries</div>
+          <div class="nav-sub-item" data-page="bankRecon">🏦 Bank Reconciliation</div>
+          <div class="nav-sub-item" data-page="budgeting">📈 Budgeting</div>
+          <div class="nav-sub-item" data-page="taxReports">🧾 Tax Reports</div>
+        </div>
+        <div class="nav-item nav-parent" data-sub="subHR"><span class="nav-icon">👥</span><span class="nav-text">HR</span><span class="nav-arrow">▸</span></div>
+        <div class="nav-sub" id="subHR">
+          <div class="nav-sub-item" data-page="empDirectory">👤 Employee Directory</div>
+          <div class="nav-sub-item" data-page="attendance">📅 Attendance</div>
+          <div class="nav-sub-item" data-page="leave">🌴 Leave Management</div>
+          <div class="nav-sub-item" data-page="payroll">💵 Payroll</div>
+          <div class="nav-sub-item" data-page="recruitment">🎯 Recruitment</div>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Masters</div>
+        <div class="nav-item" data-page="itemMaster"><span class="nav-icon">📋</span><span class="nav-text">Item Master</span></div>
+        <div class="nav-item" data-page="vendorMaster"><span class="nav-icon">🏢</span><span class="nav-text">Vendor Master</span></div>
+        <div class="nav-item" data-page="customerMaster"><span class="nav-icon">👥</span><span class="nav-text">Customer Master</span></div>
+        <div class="nav-item" data-page="bomMaster"><span class="nav-icon">🧩</span><span class="nav-text">BOM Master</span></div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Admin</div>
+        <div class="nav-item" data-page="settings"><span class="nav-icon">⚙️</span><span class="nav-text">Settings</span></div>
+        <div class="nav-item" data-page="profile"><span class="nav-icon">👤</span><span class="nav-text">My Profile</span></div>
+      </div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content" id="content">
+
+<!-- ═══ DASHBOARD ═══ -->
+<div class="page active" id="pg-dashboard">
+  <div class="breadcrumb"><span data-page="dashboard">🏠 Home</span></div>
+  <div class="page-header">
+    <div><div class="page-title">Operations Dashboard</div><div class="page-sub">SolarOS Plant · Surat, Gujarat · <span id="todayDate"></span></div></div>
+    <div class="actions">
+      <button class="btn btn-ghost btn-sm" data-page="reports">📊 Reports</button>
+      <button class="btn btn-primary btn-sm" id="refreshBtn">⟳ Refresh</button>
+    </div>
+  </div>
+  <div class="alert alert-warn">⚠️ <strong>3 Actions Required:</strong> PO-2490 pending approval · EVA Film stock critical · SO-3305 delivery overdue</div>
+  <div class="kpi-grid">
+    <div class="kpi kpi-green" data-page="prodOrders"><div class="kpi-icon">🏭</div><div class="kpi-label">MW Produced Today</div><div class="kpi-val">4.2 MW</div><div class="kpi-delta delta-up">▲ 8% vs yesterday</div></div>
+    <div class="kpi kpi-amber" data-page="oee"><div class="kpi-icon">⚡</div><div class="kpi-label">Plant OEE</div><div class="kpi-val">74%</div><div class="kpi-delta delta-dn">▼ 6pts vs target 80%</div></div>
+    <div class="kpi" data-page="stockOverview"><div class="kpi-icon">📦</div><div class="kpi-label">Inventory Value</div><div class="kpi-val">₹8.4Cr</div><div class="kpi-delta delta-up">▲ 2.1% this week</div></div>
+    <div class="kpi kpi-blue" data-page="po"><div class="kpi-icon">🛒</div><div class="kpi-label">Open POs</div><div class="kpi-val">23</div><div class="kpi-delta">3 pending approval</div></div>
+    <div class="kpi kpi-green" data-page="iqc"><div class="kpi-icon">🔬</div><div class="kpi-label">Quality Yield</div><div class="kpi-val">97.3%</div><div class="kpi-delta delta-up">▲ 0.4% this week</div></div>
+    <div class="kpi" data-page="salesOrders"><div class="kpi-icon">💼</div><div class="kpi-label">Order Book</div><div class="kpi-val">₹14.2Cr</div><div class="kpi-delta">7 active orders</div></div>
+    <div class="kpi kpi-amber" data-page="arInvoice"><div class="kpi-icon">🧾</div><div class="kpi-label">AR Outstanding</div><div class="kpi-val">₹3.8Cr</div><div class="kpi-delta delta-dn">₹0.6Cr overdue</div></div>
+    <div class="kpi kpi-green" data-page="dispatch"><div class="kpi-icon">🚚</div><div class="kpi-label">Dispatched Today</div><div class="kpi-val">1,840</div><div class="kpi-delta delta-up">▲ On schedule</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">📈 Weekly Production Output (MW)</div>
+      <div class="chart-bars">
+        <div class="bar-col"><div class="bar-val">3.8</div><div class="bar-fill" style="height:79%;background:var(--blue)"></div><div class="bar-label">Mon</div></div>
+        <div class="bar-col"><div class="bar-val">4.4</div><div class="bar-fill" style="height:92%;background:var(--blue)"></div><div class="bar-label">Tue</div></div>
+        <div class="bar-col"><div class="bar-val">3.2</div><div class="bar-fill" style="height:67%;background:var(--red)"></div><div class="bar-label">Wed</div></div>
+        <div class="bar-col"><div class="bar-val">4.7</div><div class="bar-fill" style="height:98%;background:var(--blue)"></div><div class="bar-label">Thu</div></div>
+        <div class="bar-col"><div class="bar-val">4.9</div><div class="bar-fill" style="height:100%;background:var(--green)"></div><div class="bar-label">Fri</div></div>
+        <div class="bar-col"><div class="bar-val">4.1</div><div class="bar-fill" style="height:85%;background:var(--blue)"></div><div class="bar-label">Sat</div></div>
+        <div class="bar-col"><div class="bar-val">4.2</div><div class="bar-fill" style="height:88%;background:var(--amber)"></div><div class="bar-label">Today</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔔 Activity Feed</div>
+      <div class="timeline">
+        <div class="tl-item"><div class="tl-dot" style="background:var(--green)"></div><div class="tl-line"></div><div><div class="tl-text">GRN #1193 received — EVA Film 2,400 rolls</div><div class="tl-meta">Stores · 14 min ago</div></div></div>
+        <div class="tl-item"><div class="tl-dot" style="background:var(--blue)"></div><div class="tl-line"></div><div><div class="tl-text">PO-2487 approved by Ramesh Patel</div><div class="tl-meta">Purchase · 31 min ago</div></div></div>
+        <div class="tl-item"><div class="tl-dot" style="background:var(--red)"></div><div class="tl-line"></div><div><div class="tl-text">IQC FAILED — Cell Batch B-881</div><div class="tl-meta">Quality · 1 hr ago</div></div></div>
+        <div class="tl-item"><div class="tl-dot" style="background:var(--blue)"></div><div class="tl-line"></div><div><div class="tl-text">SO-3312 confirmed — Green Energy Ltd</div><div class="tl-meta">Sales · 2 hr ago</div></div></div>
+        <div class="tl-item"><div class="tl-dot" style="background:var(--purple)"></div><div><div class="tl-text">🤖 AI: June demand surge forecasted +18%</div><div class="tl-meta">AI Engine · 3 hr ago</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="grid3">
+    <div class="card">
+      <div class="card-title">🏭 Line OEE Status</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="font-weight:600">Line 1</span><span style="color:var(--green);font-weight:700">82%</span></div><div class="prog-bar"><div class="prog-fill" style="width:82%;background:var(--green)"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="font-weight:600">Line 2</span><span style="color:var(--blue);font-weight:700">76%</span></div><div class="prog-bar"><div class="prog-fill" style="width:76%;background:var(--blue)"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="font-weight:600">Line 3 ⚠</span><span style="color:var(--red);font-weight:700">61%</span></div><div class="prog-bar"><div class="prog-fill" style="width:61%;background:var(--red)"></div></div></div>
+        <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="font-weight:600">Line 4</span><span style="color:var(--green);font-weight:700">88%</span></div><div class="prog-bar"><div class="prog-fill" style="width:88%;background:var(--green)"></div></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚠️ Stock Alerts</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--red-lt);border-radius:var(--r)"><span style="font-size:11px;font-weight:600">EVA Film</span><span class="tag tag-red">Critical</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--amber-lt);border-radius:var(--r)"><span style="font-size:11px;font-weight:600">Ribbon Wire</span><span class="tag tag-amber">Low Stock</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--amber-lt);border-radius:var(--r)"><span style="font-size:11px;font-weight:600">Junction Box</span><span class="tag tag-amber">Low Stock</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--green-lt);border-radius:var(--r)"><span style="font-size:11px;font-weight:600">Solar Cells</span><span class="tag tag-green">Adequate</span></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--green-lt);border-radius:var(--r)"><span style="font-size:11px;font-weight:600">Backsheet</span><span class="tag tag-green">Adequate</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">✅ Pending Approvals</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="nav-item-card" data-page="po" style="cursor:pointer;padding:9px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);border-left:3px solid var(--amber)">
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;font-weight:700">PO #2490 — ₹4.8L</span><span class="tag tag-amber" style="font-size:9px">PO Approval</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-top:2px">EVA Industries · 2 hr ago</div>
+        </div>
+        <div class="nav-item-card" data-page="po" style="cursor:pointer;padding:9px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);border-left:3px solid var(--amber)">
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;font-weight:700">PO #2491 — ₹12.3L</span><span class="tag tag-amber" style="font-size:9px">PO Approval</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-top:2px">RibbonTech · 4 hr ago</div>
+        </div>
+        <div class="nav-item-card" data-page="salesOrders" style="cursor:pointer;padding:9px 10px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);border-left:3px solid var(--blue)">
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11px;font-weight:700">SO #3300 — ₹1.3Cr</span><span class="tag tag-blue" style="font-size:9px">SO Confirm</span></div>
+          <div style="font-size:10px;color:var(--t3);margin-top:2px">Gujarat Infra · Awaiting</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PURCHASE ORDERS ═══ -->
+<div class="page" id="pg-po">
+  <div class="breadcrumb"><span data-page="dashboard">Home</span><span class="breadcrumb-sep">/</span><span style="color:var(--blue)">Purchase Orders</span></div>
+  <div class="page-header">
+    <div><div class="page-title">Purchase Orders</div><div class="page-sub">Full purchase order lifecycle management</div></div>
+    <div class="actions">
+      <button class="btn btn-ghost btn-sm" id="exportPOBtn">📤 Export</button>
+      <button class="btn btn-primary btn-sm" id="newPOBtn">+ New PO</button>
+    </div>
+  </div>
+  <div class="pipeline">
+    <div class="pipe-stage"><span class="pipe-count">5</span>Draft</div>
+    <div class="pipe-stage active"><span class="pipe-count">3</span>Pending Approval</div>
+    <div class="pipe-stage"><span class="pipe-count">12</span>Approved</div>
+    <div class="pipe-stage"><span class="pipe-count">8</span>GRN Pending</div>
+    <div class="pipe-stage"><span class="pipe-count">2</span>Invoice Pending</div>
+    <div class="pipe-stage"><span class="pipe-count">48</span>Closed</div>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi kpi-blue"><div class="kpi-label">Open POs</div><div class="kpi-val">23</div></div>
+    <div class="kpi kpi-amber"><div class="kpi-label">Pending Approval</div><div class="kpi-val">3</div></div>
+    <div class="kpi"><div class="kpi-label">Month Value</div><div class="kpi-val">₹48.2L</div></div>
+    <div class="kpi kpi-blue"><div class="kpi-label">GRN Pending</div><div class="kpi-val">8</div></div>
+  </div>
+  <div class="card">
+    <div class="search-row">
+      <input class="inp" placeholder="🔍 Search PO, vendor...">
+      <select class="filter"><option>All Status</option><option>Draft</option><option>Pending Approval</option><option>Approved</option><option>Closed</option></select>
+      <select class="filter"><option>All Vendors</option><option>SolarTech Cells</option><option>GlassCraft</option><option>EVA Industries</option></select>
+      <button class="btn btn-primary btn-sm">🔍 Search</button>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>PO Number</th><th>Vendor</th><th>Item</th><th>Value</th><th>Order Date</th><th>Delivery Date</th><th>Status</th><th>AI Flag</th><th>Actions</th></tr></thead>
+      <tbody>
+      <tr><td class="tbl-link po-detail-link" data-po="PO-2487">PO-2487</td><td>SolarTech Cells Pvt Ltd</td><td>Solar Cells 182mm</td><td style="font-weight:700">₹18.4L</td><td>10-May-25</td><td>25-May-25</td><td><span class="tag tag-green">Approved</span></td><td><span class="ai-chip">✓ Clean</span></td><td><button class="btn btn-success btn-xs" data-page="grn">GRN</button> <button class="btn btn-ghost btn-xs po-detail-link" data-po="PO-2487">View</button></td></tr>
+      <tr><td class="tbl-link po-detail-link" data-po="PO-2488">PO-2488</td><td>GlassCraft Industries</td><td>Toughened Glass 3.2mm</td><td style="font-weight:700">₹6.2L</td><td>11-May-25</td><td>28-May-25</td><td><span class="tag tag-green">Approved</span></td><td><span class="ai-chip">✓ Clean</span></td><td><button class="btn btn-ghost btn-xs po-detail-link" data-po="PO-2488">View</button></td></tr>
+      <tr style="background:var(--amber-lt)"><td class="tbl-link po-detail-link" data-po="PO-2490">PO-2490</td><td>EVA Industries</td><td>EVA Film 600 Rolls</td><td style="font-weight:700">₹4.8L</td><td>14-May-25</td><td>02-Jun-25</td><td><span class="tag tag-amber">Pending Approval</span></td><td><span class="ai-chip" style="background:var(--green-lt);border-color:var(--green-bd);color:var(--green)">🤖 Recommend</span></td><td><button class="btn btn-success btn-xs approve-po-btn" data-po="PO-2490">✓ Approve</button> <button class="btn btn-danger btn-xs">✗ Reject</button></td></tr>
+      <tr style="background:var(--amber-lt)"><td class="tbl-link po-detail-link" data-po="PO-2491">PO-2491</td><td>RibbonTech Materials</td><td>Ribbon Wire 0.3mm</td><td style="font-weight:700">₹12.3L</td><td>14-May-25</td><td>05-Jun-25</td><td><span class="tag tag-amber">Pending Approval</span></td><td><span class="ai-chip" style="background:var(--red-lt);border-color:var(--red-bd);color:var(--red)">⚠ Overpriced</span></td><td><button class="btn btn-success btn-xs approve-po-btn" data-po="PO-2491">✓ Approve</button> <button class="btn btn-danger btn-xs">✗ Reject</button></td></tr>
+      <tr><td class="tbl-link">PO-2485</td><td>Junction Box Co.</td><td>JB MC4 Compatible</td><td style="font-weight:700">₹3.1L</td><td>08-May-25</td><td>22-May-25</td><td><span class="tag tag-blue">GRN Pending</span></td><td>—</td><td><button class="btn btn-primary btn-xs" data-page="grn">Create GRN</button></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ═══ PO DETAIL ═══ -->
+<div class="page" id="pg-poDetail">
+  <div class="breadcrumb"><span data-page="dashboard">Home</span><span class="breadcrumb-sep">/</span><span data-page="po">Purchase Orders</span><span class="breadcrumb-sep">/</span><span style="color:var(--blue)" id="poDetailNum">PO-2487</span></div>
+  <div class="page-header">
+    <div><div class="page-title" id="poDetailTitle">Purchase Order PO-2487</div><div class="page-sub">SolarTech Cells · Created 10-May-2025</div></div>
+    <div class="actions">
+      <button class="btn btn-ghost btn-sm" id="printPOBtn">🖨 Print</button>
+      <button class="btn btn-ghost btn-sm" id="clonePOBtn">📋 Clone</button>
+      <button class="btn btn-primary btn-sm" data-page="grn">+ Create GRN</button>
+    </div>
+  </div>
+  <div class="wf-bar">
+    <span class="wf-step done">Draft</span><span class="wf-arrow"> ▸ </span>
+    <span class="wf-step done">Submitted</span><span class="wf-arrow"> ▸ </span>
+    <span class="wf-step done">L1 Approved</span><span class="wf-arrow"> ▸ </span>
+    <span class="wf-step current">GRN Pending</span><span class="wf-arrow"> ▸ </span>
+    <span class="wf-step">Invoice Match</span><span class="wf-arrow"> ▸ </span>
+    <span class="wf-step">Payment</span><span class="wf-arrow"> ▸ </span>
+    <span class="wf-step">Closed</span>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div class="tabs">
+        <div class="tab active pod-tab" data-panel="poGeneral">General</div>
+        <div class="tab pod-tab" data-panel="poItems">Line Items</div>
+        <div class="tab pod-tab" data-panel="poApproval">Approval History</div>
+        <div class="tab pod-tab" data-panel="poAudit">Audit Trail</div>
+        <div class="tab pod-tab" data-panel="poAttach">Attachments</div>
+        <div class="tab pod-tab" data-panel="poNotes">Notes</div>
+      </div>
+      <div class="tab-panel active" id="poGeneral">
+        <div class="section-title">Order Information</div>
+        <div class="info-row"><div class="info-label">PO Number</div><div class="info-val" style="font-weight:700;color:var(--blue)">PO-2487</div></div>
+        <div class="info-row"><div class="info-label">Vendor</div><div class="info-val"><span class="tbl-link" data-page="vendorMaster">SolarTech Cells Pvt Ltd</span></div></div>
+        <div class="info-row"><div class="info-label">Order Date</div><div class="info-val">10 May 2025</div></div>
+        <div class="info-row"><div class="info-label">Delivery Date</div><div class="info-val">25 May 2025</div></div>
+        <div class="info-row"><div class="info-label">Payment Terms</div><div class="info-val">Net 30 days</div></div>
+        <div class="info-row"><div class="info-label">Total Value</div><div class="info-val" style="font-weight:700;font-size:14px;color:var(--navy)">₹18,40,000</div></div>
+        <div class="info-row"><div class="info-label">Status</div><div class="info-val"><span class="tag tag-green">Approved</span></div></div>
+        <div class="info-row"><div class="info-label">GRN Status</div><div class="info-val"><span class="tag tag-amber">Awaiting GRN</span></div></div>
+        <div class="info-row"><div class="info-label">Cost Center</div><div class="info-val">CC-001 Manufacturing</div></div>
+      </div>
+      <div class="tab-panel" id="poItems">
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>#</th><th>Item</th><th>Qty</th><th>UOM</th><th>Rate</th><th>GST%</th><th>Amount</th></tr></thead>
+          <tbody><tr><td>1</td><td>Solar Cells 182mm Monocrystalline</td><td>10,000</td><td>Pcs</td><td>₹184</td><td>5%</td><td>₹18,40,000</td></tr></tbody>
+          <tfoot style="background:var(--bg2)">
+            <tr><td colspan="6" style="text-align:right;font-weight:700;padding:8px 14px">Subtotal</td><td style="font-weight:700;padding:8px 14px">₹17,52,381</td></tr>
+            <tr><td colspan="6" style="text-align:right;padding:8px 14px;color:var(--t2)">GST 5%</td><td style="padding:8px 14px">₹87,619</td></tr>
+            <tr><td colspan="6" style="text-align:right;font-weight:800;padding:8px 14px;color:var(--navy)">Total</td><td style="font-weight:800;padding:8px 14px;color:var(--navy);font-size:14px">₹18,40,000</td></tr>
+          </tfoot>
+        </table></div>
+      </div>
+      <div class="tab-panel" id="poApproval">
+        <div class="stepper">
+          <div class="step"><div class="step-circle done">✓</div><div class="step-info"><div class="step-name">L1 — Procurement</div><div class="step-sub" style="color:var(--green)">Ankit Shah · 10-May</div></div></div>
+          <div class="step-line done"></div>
+          <div class="step"><div class="step-circle done">✓</div><div class="step-info"><div class="step-name">L2 — Finance</div><div class="step-sub" style="color:var(--green)">Kavita Joshi · 11-May</div></div></div>
+          <div class="step-line done"></div>
+          <div class="step"><div class="step-circle done">✓</div><div class="step-info"><div class="step-name">L3 — Plant Head</div><div class="step-sub" style="color:var(--green)">Ramesh Patel · 11-May</div></div></div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Level</th><th>Approver</th><th>Action</th><th>Date</th><th>Comments</th></tr></thead>
+          <tbody>
+          <tr><td>L1</td><td>Ankit Shah</td><td><span class="tag tag-green">Approved</span></td><td>10-May 14:22</td><td>Standard order, vendor approved</td></tr>
+          <tr><td>L2</td><td>Kavita Joshi</td><td><span class="tag tag-green">Approved</span></td><td>11-May 09:10</td><td>Budget available in CC-001</td></tr>
+          <tr><td>L3</td><td>Ramesh Patel</td><td><span class="tag tag-green">Approved</span></td><td>11-May 11:45</td><td>Urgently needed for production</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="tab-panel" id="poAudit">
+        <div class="timeline">
+          <div class="tl-item"><div class="tl-dot" style="background:var(--blue)"></div><div class="tl-line"></div><div><div class="tl-text">PO Created</div><div style="font-size:11px;color:var(--t2)">Ankit Shah created PO-2487</div><div class="tl-meta">10-May-25 13:45</div></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--amber)"></div><div class="tl-line"></div><div><div class="tl-text">Submitted for Approval</div><div class="tl-meta">10-May-25 14:00</div></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--green)"></div><div class="tl-line"></div><div><div class="tl-text">L1 Approved — Ankit Shah</div><div class="tl-meta">10-May-25 14:22</div></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--green)"></div><div class="tl-line"></div><div><div class="tl-text">L2 Approved — Kavita Joshi</div><div class="tl-meta">11-May-25 09:10</div></div></div>
+          <div class="tl-item"><div class="tl-dot" style="background:var(--green)"></div><div><div class="tl-text">L3 Final Approval — Ramesh Patel</div><div class="tl-meta">11-May-25 11:45</div></div></div>
+        </div>
+      </div>
+      <div class="tab-panel" id="poAttach">
+        <div class="attach-zone" id="attachZone">📎 Drop files here or click to upload<br><span style="font-size:10px">PDF, XLSX, PNG · Max 10MB</span></div>
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r)"><span style="font-size:20px">📄</span><div style="flex:1"><div style="font-size:12px;font-weight:600">Vendor_Quote.pdf</div><div style="font-size:10px;color:var(--t3)">245 KB · 10-May-25</div></div><button class="btn btn-ghost btn-xs">⬇</button></div>
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r)"><span style="font-size:20px">📋</span><div style="flex:1"><div style="font-size:12px;font-weight:600">COC_SolarTech.pdf</div><div style="font-size:10px;color:var(--t3)">180 KB · 10-May-25</div></div><button class="btn btn-ghost btn-xs">⬇</button></div>
+        </div>
+      </div>
+      <div class="tab-panel" id="poNotes">
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+          <div style="padding:10px 12px;background:var(--blue-lt);border:1px solid var(--blue-mid);border-radius:var(--r)"><div style="font-size:11px;font-weight:700;margin-bottom:4px">Ankit Shah · 10-May 14:05</div><div style="font-size:12px">Vendor confirmed delivery on 25th May. COC will accompany shipment.</div></div>
+          <div style="padding:10px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r)"><div style="font-size:11px;font-weight:700;margin-bottom:4px">Ramesh Patel · 11-May 11:50</div><div style="font-size:12px">Approved. Ensure IQC within 24 hours of receipt.</div></div>
+        </div>
+        <textarea class="inp" style="margin:0;margin-bottom:8px;height:60px" placeholder="Add a note..."></textarea>
+        <button class="btn btn-primary btn-sm" id="addNoteBtn">Add Note</button>
+      </div>
+    </div>
+    <div>
+      <div class="detail-panel">
+        <div class="detail-panel-header">📊 Order Summary <button class="btn btn-ghost btn-xs" data-page="po" style="color:#fff;border-color:rgba(255,255,255,.3)">← Back</button></div>
+        <div class="detail-panel-body">
+          <div style="text-align:center;padding:12px 0;border-bottom:1px solid var(--bd);margin-bottom:12px">
+            <div style="font-size:28px;font-weight:800;color:var(--navy)">₹18.4L</div>
+            <div style="font-size:11px;color:var(--t3)">Total PO Value</div>
+            <div style="margin-top:8px"><span class="tag tag-green">✓ Approved</span></div>
+          </div>
+          <div class="info-row"><div class="info-label">GRN Qty</div><div class="info-val">0 / 10,000 pcs</div></div>
+          <div class="info-row"><div class="info-label">Invoiced</div><div class="info-val">₹0 / ₹18.4L</div></div>
+          <div class="info-row"><div class="info-label">Paid</div><div class="info-val">₹0</div></div>
+          <div style="margin-top:12px" class="ai-insight">
+            <div class="ai-insight-title">🤖 AI Assessment</div>
+            <div>Price within 2% of market average. Vendor 88% OTD. Recommend processing normally.</div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="section-title">Related Documents</div>
+            <div style="font-size:11px;display:flex;flex-direction:column;gap:4px">
+              <span class="tbl-link" data-page="grn">→ GRN-1193 (IQC Pending)</span>
+              <span style="color:var(--t3)">Invoice — Not received</span>
+              <span style="color:var(--t3)">Payment — Pending</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GRN ═══ -->
+<div class="page" id="pg-grn">
+  <div class="breadcrumb"><span data-page="dashboard">Home</span><span class="breadcrumb-sep">/</span><span data-page="po">Purchase</span><span class="breadcrumb-sep">/</span><span style="color:var(--blue)">GRN</span></div>
+  <div class="page-header"><div><div class="page-title">Goods Receipt Note</div><div class="page-sub">Record material receipts against purchase orders</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newGRNBtn">+ New GRN</button></div></div>
+  <div class="kpi-grid">
+    <div class="kpi kpi-green"><div class="kpi-label">GRNs Today</div><div class="kpi-val">4</div></div>
+    <div class="kpi kpi-amber"><div class="kpi-label">Awaiting IQC</div><div class="kpi-val">2</div></div>
+    <div class="kpi"><div class="kpi-label">Week Value</div><div class="kpi-val">₹31.2L</div></div>
+    <div class="kpi kpi-red"><div class="kpi-label">Rejected</div><div class="kpi-val">1</div></div>
+  </div>
+  <div class="card"><div class="tbl-wrap"><table>
+    <thead><tr><th>GRN No.</th><th>PO No.</th><th>Vendor</th><th>Item</th><th>Qty Received</th><th>Batch ID</th><th>IQC Status</th><th>Date</th><th>Actions</th></tr></thead>
+    <tbody>
+    <tr><td class="tbl-link">GRN-1193</td><td class="tbl-link" data-page="po">PO-2487</td><td>SolarTech Cells</td><td>Solar Cells 182mm</td><td>10,000 pcs</td><td><span class="tag tag-blue">B-892</span></td><td><span class="tag tag-amber">Pending IQC</span></td><td>15-May-25</td><td><button class="btn btn-primary btn-xs" data-page="iqc">Start IQC</button></td></tr>
+    <tr><td class="tbl-link">GRN-1192</td><td class="tbl-link">PO-2488</td><td>GlassCraft</td><td>Toughened Glass</td><td>500 pcs</td><td><span class="tag tag-blue">B-891</span></td><td><span class="tag tag-green">IQC Passed</span></td><td>14-May-25</td><td><button class="btn btn-ghost btn-xs">View</button></td></tr>
+    <tr><td class="tbl-link" style="color:var(--red)">GRN-1190</td><td class="tbl-link">PO-2483</td><td>SolarTech Cells</td><td>Solar Cells 182mm</td><td>5,000 pcs</td><td><span class="tag tag-red">B-881</span></td><td><span class="tag tag-red">IQC Failed</span></td><td>12-May-25</td><td><button class="btn btn-danger btn-xs" data-page="ncr">View NCR</button></td></tr>
+    </tbody>
+  </table></div></div>
+</div>
+
+<!-- ═══ AI COPILOT ═══ -->
+<div class="page" id="pg-aiCopilot">
+  <div class="breadcrumb"><span data-page="dashboard">Home</span><span class="breadcrumb-sep">/</span><span style="color:var(--blue)">AI Copilot</span></div>
+  <div class="page-header"><div><div class="page-title">AI Copilot</div><div class="page-sub">GPT-4 powered assistant with full ERP context</div></div><div class="actions"><div class="ai-chip">🟢 Connected · GPT-4</div></div></div>
+  <div class="grid2" style="align-items:start">
+    <div>
+      <div class="card">
+        <div id="aiChat" style="height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:12px">
+          <div style="display:flex;gap:8px;align-items:flex-start"><div style="width:28px;height:28px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div><div style="background:var(--white);border:1px solid var(--bd);border-radius:4px 12px 12px 12px;padding:10px 14px;font-size:12px;max-width:85%;box-shadow:var(--shadow)">Hello! I'm your SolarOS AI Copilot. I have real-time context of your ERP. Ask me anything about procurement, production, inventory, quality, finance, or HR.</div></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <input class="inp" id="aiInput" style="margin:0;flex:1" placeholder="Ask anything about your operations...">
+          <button class="btn btn-primary" id="aiSendBtn">Send →</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚡ Quick Questions</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <button class="btn btn-ghost btn-sm ai-quick-btn" data-q="What are my top 3 supply risks this week?">Supply risks</button>
+          <button class="btn btn-ghost btn-sm ai-quick-btn" data-q="Suggest items to reorder based on stock levels">Reorder list</button>
+          <button class="btn btn-ghost btn-sm ai-quick-btn" data-q="What is the demand forecast for next month?">Demand forecast</button>
+          <button class="btn btn-ghost btn-sm ai-quick-btn" data-q="Which production lines need maintenance?">Maintenance alerts</button>
+          <button class="btn btn-ghost btn-sm ai-quick-btn" data-q="Summarize financial health">Finance summary</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🧠 AI Insights</div>
+      <div class="ai-insight"><div class="ai-insight-title">📈 Demand Surge — June 2025</div><div>+18% demand forecast. Recommend production scale-up to 2,400 pcs/day from May 25.</div><button class="btn btn-primary btn-xs" style="margin-top:8px" data-page="pr">Create PR →</button></div>
+      <div class="ai-insight"><div class="ai-insight-title">⚠️ Supply Risk — Ribbon Wire</div><div>PO-2491 approval overdue 4hr. Alternate vendor available at 3% premium.</div><button class="btn btn-warn btn-xs" style="margin-top:8px" data-page="po">Review PO →</button></div>
+      <div class="ai-insight"><div class="ai-insight-title">💰 Cost Saving Opportunity</div><div>Consolidate 3 small POs into 1 bulk order. Potential saving: ₹1.2L in freight + 2% volume discount.</div></div>
+      <div class="ai-insight"><div class="ai-insight-title">🔧 Predictive Maintenance</div><div>Line 3 laminator vibration anomaly. Schedule PM within 48 hours.</div><button class="btn btn-navy btn-xs" style="margin-top:8px" id="createWOBtn">Create Work Order</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONTROL TOWER ═══ -->
+<div class="page" id="pg-controlTower">
+  <div class="breadcrumb"><span data-page="dashboard">Home</span><span class="breadcrumb-sep">/</span><span style="color:var(--blue)">Control Tower</span></div>
+  <div class="page-header"><div><div class="page-title">🛰 Enterprise Control Tower</div><div class="page-sub">Real-time operations intelligence</div></div><div class="actions"><div class="tag tag-green">● Live</div></div></div>
+  <div class="alert alert-error">🚨 <strong>P1 ALERTS:</strong> Line 3 OEE 61% · EVA Film critical · PO-2491 overdue 4hr</div>
+  <div class="grid3">
+    <div class="card" style="border-top:3px solid var(--green)"><div class="card-title">🏭 Production</div><div style="font-size:28px;font-weight:800;color:var(--green)">4.2 MW</div><div style="font-size:11px;color:var(--t3);margin-bottom:8px">Today · Target: 4.8 MW</div><div class="prog-bar"><div class="prog-fill" style="width:88%;background:var(--green)"></div></div></div>
+    <div class="card" style="border-top:3px solid var(--blue)"><div class="card-title">📦 Supply Chain</div><div style="display:flex;flex-direction:column;gap:7px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>Open POs</span><strong style="color:var(--blue)">23</strong></div><div style="display:flex;justify-content:space-between"><span>Critical Shortages</span><strong style="color:var(--red)">2</strong></div><div style="display:flex;justify-content:space-between"><span>GRN Pending</span><strong style="color:var(--amber)">8</strong></div></div></div>
+    <div class="card" style="border-top:3px solid var(--purple)"><div class="card-title">💰 Commercial</div><div style="display:flex;flex-direction:column;gap:7px;font-size:12px"><div style="display:flex;justify-content:space-between"><span>Order Book</span><strong style="color:var(--green)">₹14.2Cr</strong></div><div style="display:flex;justify-content:space-between"><span>AR Outstanding</span><strong style="color:var(--amber)">₹3.8Cr</strong></div><div style="display:flex;justify-content:space-between"><span>Overdue</span><strong style="color:var(--red)">₹0.6Cr</strong></div></div></div>
+  </div>
+  <div class="card"><div class="card-title">🚨 Live Exception Management</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Priority</th><th>Exception</th><th>Module</th><th>Impact</th><th>Age</th><th>Actions</th></tr></thead>
+      <tbody>
+      <tr style="background:var(--red-lt)"><td><span class="tag tag-red">P1 🔴</span></td><td style="font-weight:600">EVA Film critical stock</td><td>Inventory</td><td>Production stop in 2 days</td><td>4 hr</td><td><button class="btn btn-primary btn-xs" data-page="pr">Create PR</button></td></tr>
+      <tr style="background:var(--red-lt)"><td><span class="tag tag-red">P1 🔴</span></td><td style="font-weight:600">Line 3 OEE at 61%</td><td>Production</td><td>200 pcs/day shortfall</td><td>2 hr</td><td><button class="btn btn-danger btn-xs" data-page="oee">View OEE</button></td></tr>
+      <tr style="background:var(--amber-lt)"><td><span class="tag tag-amber">P2 🟡</span></td><td style="font-weight:600">PO-2491 approval overdue</td><td>Purchase</td><td>Ribbon Wire delivery delay</td><td>4 hr</td><td><button class="btn btn-primary btn-xs approve-po-btn" data-po="PO-2491">Approve</button></td></tr>
+      <tr style="background:var(--amber-lt)"><td><span class="tag tag-amber">P2 🟡</span></td><td style="font-weight:600">SO-3305 delivery overdue</td><td>Sales</td><td>Penalty clause risk</td><td>5 days</td><td><button class="btn btn-warn btn-xs" data-page="dispatch">Dispatch</button></td></tr>
+      <tr><td><span class="tag tag-blue">P3 🔵</span></td><td>IQC-441 pending 24hr</td><td>Quality</td><td>10,000 cells blocked</td><td>24 hr</td><td><button class="btn btn-ghost btn-xs" data-page="iqc">Inspect</button></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ═══ REPORTS ═══ -->
+<div class="page" id="pg-reports">
+  <div class="breadcrumb"><span data-page="dashboard">Home</span><span class="breadcrumb-sep">/</span><span style="color:var(--blue)">Reports</span></div>
+  <div class="page-header"><div><div class="page-title">Enterprise Reports</div><div class="page-sub">Analytics, drill-down, and exports</div></div></div>
+  <div class="grid3" style="margin-bottom:16px">
+    <div class="card" style="cursor:pointer;text-align:center" data-page="prodOrders"><div style="font-size:32px;margin-bottom:8px">🏭</div><div style="font-weight:700;color:var(--navy)">Production Reports</div><div style="font-size:11px;color:var(--t3);margin-top:4px">OEE, output, downtime, shift</div></div>
+    <div class="card" style="cursor:pointer;text-align:center" data-page="po"><div style="font-size:32px;margin-bottom:8px">🛒</div><div style="font-weight:700;color:var(--navy)">Procurement Reports</div><div style="font-size:11px;color:var(--t3);margin-top:4px">PO aging, spend, vendor perf.</div></div>
+    <div class="card" style="cursor:pointer;text-align:center" data-page="stockOverview"><div style="font-size:32px;margin-bottom:8px">📦</div><div style="font-weight:700;color:var(--navy)">Inventory Reports</div><div style="font-size:11px;color:var(--t3);margin-top:4px">Stock aging, movement, value</div></div>
+    <div class="card" style="cursor:pointer;text-align:center" data-page="iqc"><div style="font-size:32px;margin-bottom:8px">🔬</div><div style="font-weight:700;color:var(--navy)">Quality Reports</div><div style="font-size:11px;color:var(--t3);margin-top:4px">IQC yield, NCR, Cpk</div></div>
+    <div class="card" style="cursor:pointer;text-align:center" data-page="finDashboard"><div style="font-size:32px;margin-bottom:8px">💰</div><div style="font-weight:700;color:var(--navy)">Finance Reports</div><div style="font-size:11px;color:var(--t3);margin-top:4px">P&L, balance sheet, cash flow</div></div>
+    <div class="card" style="cursor:pointer;text-align:center" data-page="salesOrders"><div style="font-size:32px;margin-bottom:8px">💼</div><div style="font-weight:700;color:var(--navy)">Sales Reports</div><div style="font-size:11px;color:var(--t3);margin-top:4px">Revenue, customer, territory</div></div>
+  </div>
+</div>
+
+<!-- ═══ STUB PAGES ═══ -->
+<div class="page" id="pg-rfq"><div class="page-header"><div><div class="page-title">RFQ</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New RFQ</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>RFQ No.</th><th>Item</th><th>Qty</th><th>Vendors</th><th>Deadline</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">RFQ-441</td><td>EVA Film</td><td>600 Rolls</td><td>3</td><td>18-May-25</td><td><span class="tag tag-amber">Awaiting Response</span></td></tr><tr><td class="tbl-link">RFQ-440</td><td>Solar Cells 182mm</td><td>20,000 pcs</td><td>2</td><td>16-May-25</td><td><span class="tag tag-green">All Received</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-pr"><div class="page-header"><div><div class="page-title">Purchase Requisitions</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New PR</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>PR No.</th><th>Item</th><th>Qty</th><th>Required By</th><th>Source</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr><td class="tbl-link">PR-881</td><td>EVA Film</td><td>400 Rolls</td><td>20-May-25</td><td>System (MRP)</td><td><span class="tag tag-amber">Pending Approval</span></td><td><button class="btn btn-success btn-xs approve-btn">Approve</button> <button class="btn btn-ghost btn-xs" data-page="rfq">Create RFQ</button></td></tr><tr><td class="tbl-link">PR-880</td><td>Ribbon Wire</td><td>150 Kg</td><td>22-May-25</td><td>Ankit Shah</td><td><span class="tag tag-green">Approved → PO</span></td><td><button class="btn btn-ghost btn-xs" data-page="po">View PO</button></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-invoiceMatch"><div class="page-header"><div><div class="page-title">Invoice Matching</div><div class="page-sub">3-Way Match: PO ↔ GRN ↔ Invoice</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="uploadInvBtn">+ Upload Invoice</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Invoice No.</th><th>Vendor</th><th>PO No.</th><th>GRN No.</th><th>Amount</th><th>Variance</th><th>Match Status</th><th>Actions</th></tr></thead><tbody><tr><td>VINV-2210</td><td>SolarTech</td><td class="tbl-link" data-page="po">PO-2487</td><td class="tbl-link">GRN-1192</td><td>₹18.4L</td><td style="color:var(--green);font-weight:700">₹0</td><td><span class="tag tag-green">✓ 3-Way Matched</span></td><td><button class="btn btn-success btn-xs approve-btn">Approve</button></td></tr><tr style="background:var(--amber-lt)"><td>VINV-2209</td><td>GlassCraft</td><td class="tbl-link">PO-2488</td><td>GRN Pending</td><td>₹6.2012L</td><td style="color:var(--amber);font-weight:700">₹1,200</td><td><span class="tag tag-amber">⚠ Variance</span></td><td><button class="btn btn-warn btn-xs">Review</button></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-apPayment"><div class="page-header"><div><div class="page-title">AP Payments</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newAPBtn">+ Record Payment</button></div></div><div class="kpi-grid"><div class="kpi"><div class="kpi-label">AP Outstanding</div><div class="kpi-val">₹2.4Cr</div></div><div class="kpi kpi-amber"><div class="kpi-label">Due This Week</div><div class="kpi-val">₹18.4L</div></div><div class="kpi kpi-green"><div class="kpi-label">Paid This Month</div><div class="kpi-val">₹38.2L</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Vendor</th><th>Invoice</th><th>Amount</th><th>Due Date</th><th>Status</th><th>Action</th></tr></thead><tbody><tr><td>SolarTech Cells</td><td>VINV-2210</td><td>₹18.4L</td><td>25-May-25</td><td><span class="tag tag-amber">Due Soon</span></td><td><button class="btn btn-primary btn-xs pay-btn">Pay</button></td></tr><tr><td>GlassCraft</td><td>VINV-2209</td><td>₹6.2L</td><td>28-May-25</td><td><span class="tag tag-blue">Upcoming</span></td><td><button class="btn btn-ghost btn-xs">Pay</button></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-supplierScore"><div class="page-header"><div><div class="page-title">Supplier Scorecard</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Vendor</th><th>OTD %</th><th>Quality %</th><th>Price Score</th><th>Overall</th><th>Trend</th></tr></thead><tbody><tr><td>SolarTech Cells</td><td>88%</td><td>91%</td><td>82%</td><td style="color:var(--amber);font-weight:700">87%</td><td>▼ Declining</td></tr><tr><td>GlassCraft</td><td>96%</td><td>98%</td><td>88%</td><td style="color:var(--green);font-weight:700">94%</td><td>▲ Improving</td></tr><tr><td>EVA Industries</td><td>82%</td><td>94%</td><td>90%</td><td style="color:var(--blue);font-weight:700">89%</td><td>→ Stable</td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-stockOverview"><div class="page-header"><div><div class="page-title">Stock Overview</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="adjustStockBtn">± Adjust Stock</button></div></div><div class="kpi-grid"><div class="kpi"><div class="kpi-label">Total SKUs</div><div class="kpi-val">148</div></div><div class="kpi kpi-red"><div class="kpi-label">Below Safety</div><div class="kpi-val">4</div></div><div class="kpi"><div class="kpi-label">Total Value</div><div class="kpi-val">₹8.4Cr</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Item Code</th><th>Description</th><th>UOM</th><th>On Hand</th><th>Available</th><th>Safety Stock</th><th>Value</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">RM-001</td><td>Solar Cells 182mm</td><td>Pcs</td><td>42,000</td><td>24,000</td><td>20,000</td><td>₹3.2Cr</td><td><span class="tag tag-green">OK</span></td></tr><tr style="background:var(--red-lt)"><td class="tbl-link">RM-003</td><td>EVA Film Standard Grade</td><td>Rolls</td><td>180</td><td>120</td><td>200</td><td>₹2.7L</td><td><span class="tag tag-red">Critical</span></td></tr><tr style="background:var(--amber-lt)"><td class="tbl-link">RM-005</td><td>Ribbon Wire 0.3mm</td><td>Kg</td><td>220</td><td>140</td><td>150</td><td>₹4.4L</td><td><span class="tag tag-amber">Low Stock</span></td></tr><tr><td class="tbl-link">FG-001</td><td>Solar Module 600W Mono</td><td>Pcs</td><td>840</td><td>240</td><td>300</td><td>₹2.1Cr</td><td><span class="tag tag-blue">Low Avail.</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-batchMgmt"><div class="page-header"><div><div class="page-title">Batch Management</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New Batch</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Batch ID</th><th>Item</th><th>Vendor</th><th>Qty</th><th>IQC</th><th>Location</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link" style="color:var(--amber)">B-892</td><td>Solar Cells 182mm</td><td>SolarTech</td><td>10,000</td><td><span class="tag tag-amber">Pending</span></td><td>WH-01 / R3</td><td><span class="tag tag-amber">On Hold</span></td></tr><tr><td class="tbl-link">B-891</td><td>Toughened Glass</td><td>GlassCraft</td><td>500</td><td><span class="tag tag-green">Passed</span></td><td>WH-01 / R1</td><td><span class="tag tag-green">Available</span></td></tr><tr><td class="tbl-link" style="color:var(--red)">B-881</td><td>Solar Cells 182mm</td><td>SolarTech</td><td>5,000</td><td><span class="tag tag-red">Failed</span></td><td>WH-01 / Q-Hold</td><td><span class="tag tag-red">Return to Vendor</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-warehouseTransfer"><div class="page-header"><div><div class="page-title">Warehouse Transfers</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New Transfer</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>TRF No.</th><th>Item</th><th>From</th><th>To</th><th>Qty</th><th>Status</th></tr></thead><tbody><tr><td>TRF-441</td><td>Solar Cells 182mm</td><td>WH-01</td><td>Production Store</td><td>5,000</td><td><span class="tag tag-green">Completed</span></td></tr><tr><td>TRF-440</td><td>600W Module</td><td>Production</td><td>WH-02 FG</td><td>840</td><td><span class="tag tag-blue">In Transit</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-cycleCount"><div class="page-header"><div><div class="page-title">Cycle Count</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New Count</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Count No.</th><th>Location</th><th>Item</th><th>System Qty</th><th>Counted</th><th>Variance</th><th>Status</th></tr></thead><tbody><tr><td>CC-221</td><td>WH-01/R3</td><td>Solar Cells</td><td>42,000</td><td>41,840</td><td style="color:var(--amber);font-weight:700">-160</td><td><span class="tag tag-amber">Under Review</span></td></tr><tr><td>CC-220</td><td>WH-01/R1</td><td>Glass</td><td>1,200</td><td>1,200</td><td style="color:var(--green)">0</td><td><span class="tag tag-green">Approved</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-prodOrders"><div class="page-header"><div><div class="page-title">Production Orders</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newProdBtn">+ New Order</button></div></div><div class="kpi-grid"><div class="kpi kpi-blue"><div class="kpi-label">In Progress</div><div class="kpi-val">8</div></div><div class="kpi kpi-green"><div class="kpi-label">Completed Today</div><div class="kpi-val">1,840</div></div><div class="kpi kpi-red"><div class="kpi-label">On Hold</div><div class="kpi-val">1</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Order No.</th><th>Product</th><th>Planned</th><th>Produced</th><th>Line</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">PRD-4421</td><td>600W Mono Module</td><td>2,000</td><td>1,840</td><td>Line 1</td><td><span class="tag tag-blue">In Progress</span></td></tr><tr><td class="tbl-link">PRD-4422</td><td>595W Mono Module</td><td>1,500</td><td>980</td><td>Line 2</td><td><span class="tag tag-blue">In Progress</span></td></tr><tr><td class="tbl-link" style="color:var(--red)">PRD-4418</td><td>600W Mono Module</td><td>1,200</td><td>0</td><td>Line 3</td><td><span class="tag tag-red">On Hold</span></td></tr><tr><td class="tbl-link">PRD-4415</td><td>580W Bifacial</td><td>800</td><td>800</td><td>Line 4</td><td><span class="tag tag-green">Completed</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-workOrders"><div class="page-header"><div><div class="page-title">Work Orders</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>WO No.</th><th>Prod Order</th><th>Operation</th><th>Machine</th><th>Start</th><th>End</th><th>Status</th></tr></thead><tbody><tr><td>WO-8821</td><td>PRD-4421</td><td>Tabbing &amp; Stringing</td><td>TS-01</td><td>08:00</td><td>12:00</td><td><span class="tag tag-green">Completed</span></td></tr><tr><td>WO-8822</td><td>PRD-4421</td><td>Lamination</td><td>LAM-02</td><td>12:30</td><td>16:30</td><td><span class="tag tag-blue">In Progress</span></td></tr><tr><td>WO-8823</td><td>PRD-4421</td><td>Flash Test</td><td>FT-01</td><td>17:00</td><td>19:00</td><td><span class="tag tag-gray">Scheduled</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-oee"><div class="page-header"><div><div class="page-title">OEE Dashboard</div></div></div><div class="kpi-grid"><div class="kpi kpi-amber"><div class="kpi-label">Plant OEE</div><div class="kpi-val">74%</div><div class="kpi-delta">Target: 80%</div></div><div class="kpi kpi-green"><div class="kpi-label">Availability</div><div class="kpi-val">88%</div></div><div class="kpi kpi-amber"><div class="kpi-label">Performance</div><div class="kpi-val">82%</div></div><div class="kpi kpi-green"><div class="kpi-label">Quality Rate</div><div class="kpi-val">97.3%</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Line</th><th>Availability</th><th>Performance</th><th>Quality</th><th>OEE</th><th>Status</th></tr></thead><tbody><tr><td>Line 1</td><td>90%</td><td>88%</td><td>98%</td><td style="color:var(--green);font-weight:700">82%</td><td><span class="tag tag-green">Good</span></td></tr><tr><td>Line 2</td><td>86%</td><td>84%</td><td>97%</td><td style="color:var(--blue);font-weight:700">76%</td><td><span class="tag tag-blue">Average</span></td></tr><tr><td>Line 3</td><td>72%</td><td>78%</td><td>95%</td><td style="color:var(--red);font-weight:700">61%</td><td><span class="tag tag-red">Poor</span></td></tr><tr><td>Line 4</td><td>93%</td><td>91%</td><td>98%</td><td style="color:var(--green);font-weight:700">88%</td><td><span class="tag tag-green">Excellent</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-iqc"><div class="page-header"><div><div class="page-title">IQC — Incoming Quality Control</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newIQCBtn">+ New Inspection</button></div></div><div class="kpi-grid"><div class="kpi kpi-amber"><div class="kpi-label">Pending</div><div class="kpi-val">2</div></div><div class="kpi kpi-green"><div class="kpi-label">Passed This Week</div><div class="kpi-val">8</div></div><div class="kpi kpi-red"><div class="kpi-label">Failed</div><div class="kpi-val">1</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>IQC No.</th><th>GRN</th><th>Item</th><th>Vendor</th><th>Qty</th><th>Result</th><th>Date</th><th>Actions</th></tr></thead><tbody><tr><td class="tbl-link" style="color:var(--amber)">IQC-441</td><td class="tbl-link" data-page="grn">GRN-1193</td><td>Solar Cells 182mm</td><td>SolarTech</td><td>10,000</td><td><span class="tag tag-amber">Pending</span></td><td>15-May</td><td><button class="btn btn-primary btn-xs" id="inspectBtn">Inspect</button></td></tr><tr><td class="tbl-link">IQC-440</td><td class="tbl-link">GRN-1192</td><td>Toughened Glass</td><td>GlassCraft</td><td>500</td><td><span class="tag tag-green">Passed</span></td><td>14-May</td><td><button class="btn btn-ghost btn-xs">Report</button></td></tr><tr><td class="tbl-link" style="color:var(--red)">IQC-438</td><td class="tbl-link">GRN-1190</td><td>Solar Cells 182mm</td><td>SolarTech</td><td>5,000</td><td><span class="tag tag-red">Failed</span></td><td>12-May</td><td><button class="btn btn-danger btn-xs" data-page="ncr">View NCR</button></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-fqc"><div class="page-header"><div><div class="page-title">FQC / Flash Test</div></div></div><div class="kpi-grid"><div class="kpi kpi-green"><div class="kpi-label">Tested Today</div><div class="kpi-val">1,840</div></div><div class="kpi"><div class="kpi-label">Avg Pmax</div><div class="kpi-val">602W</div></div><div class="kpi kpi-red"><div class="kpi-label">Below 595W</div><div class="kpi-val">23</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Serial</th><th>Prod Order</th><th>Pmax (W)</th><th>Voc</th><th>Isc</th><th>Efficiency</th><th>Bin</th></tr></thead><tbody><tr><td>MOD-20250515-001</td><td>PRD-4421</td><td style="color:var(--green);font-weight:700">603.4</td><td>49.8V</td><td>14.2A</td><td>22.1%</td><td><span class="tag tag-green">600W Bin</span></td></tr><tr><td>MOD-20250515-002</td><td>PRD-4421</td><td style="color:var(--blue);font-weight:700">598.1</td><td>49.6V</td><td>14.0A</td><td>21.9%</td><td><span class="tag tag-blue">595W Bin</span></td></tr><tr><td>MOD-20250515-023</td><td>PRD-4421</td><td style="color:var(--red);font-weight:700">591.2</td><td>49.1V</td><td>13.9A</td><td>21.6%</td><td><span class="tag tag-red">Reject</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-ncr"><div class="page-header"><div><div class="page-title">NCR Management</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New NCR</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>NCR No.</th><th>Source</th><th>Item</th><th>Defect</th><th>Disposition</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link" style="color:var(--red)">NCR-221</td><td>IQC</td><td>Solar Cells 182mm</td><td>Microcracks — EL failure</td><td>Vendor Return</td><td><span class="tag tag-red">Open</span></td></tr><tr><td class="tbl-link">NCR-220</td><td>In-Process</td><td>EVA Film</td><td>Delamination risk</td><td>Rework</td><td><span class="tag tag-amber">In Progress</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-salesOrders"><div class="page-header"><div><div class="page-title">Sales Orders</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newSOBtn">+ New Order</button></div></div><div class="kpi-grid"><div class="kpi kpi-blue"><div class="kpi-label">Open Orders</div><div class="kpi-val">7</div></div><div class="kpi"><div class="kpi-label">Order Book</div><div class="kpi-val">₹14.2Cr</div></div><div class="kpi kpi-green"><div class="kpi-label">Dispatched MTD</div><div class="kpi-val">₹6.8Cr</div></div><div class="kpi kpi-red"><div class="kpi-label">Overdue</div><div class="kpi-val">1</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>SO No.</th><th>Customer</th><th>Product</th><th>Qty</th><th>Value</th><th>Delivery</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr><td class="tbl-link">SO-3312</td><td>Green Energy Ltd</td><td>600W Mono</td><td>2,000</td><td>₹5.0Cr</td><td>20-May-25</td><td><span class="tag tag-blue">Confirmed</span></td><td><button class="btn btn-primary btn-xs" data-page="dispatch">Dispatch</button></td></tr><tr><td class="tbl-link" style="color:var(--red)">SO-3305</td><td>Rajasthan Solar</td><td>600W Mono</td><td>800</td><td>₹2.0Cr</td><td>10-May-25</td><td><span class="tag tag-red">Overdue</span></td><td><button class="btn btn-danger btn-xs" data-page="dispatch">Dispatch Now</button></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-dispatch"><div class="page-header"><div><div class="page-title">Dispatch &amp; Logistics</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ Create Dispatch</button></div></div><div class="kpi-grid"><div class="kpi kpi-green"><div class="kpi-label">Dispatched Today</div><div class="kpi-val">1,840</div></div><div class="kpi kpi-blue"><div class="kpi-label">In Transit</div><div class="kpi-val">3,200</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Dispatch No.</th><th>SO No.</th><th>Customer</th><th>Qty</th><th>Transporter</th><th>LR No.</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">DSP-881</td><td class="tbl-link" data-page="salesOrders">SO-3312</td><td>Green Energy Ltd</td><td>1,000</td><td>Blue Dart Cargo</td><td>BD-44821</td><td><span class="tag tag-blue">In Transit</span></td></tr><tr><td class="tbl-link">DSP-876</td><td class="tbl-link">SO-3298</td><td>SunPower Projects</td><td>800</td><td>TCI Express</td><td>TCI-88221</td><td><span class="tag tag-green">Delivered</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-arInvoice"><div class="page-header"><div><div class="page-title">AR Invoice</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New Invoice</button></div></div><div class="kpi-grid"><div class="kpi kpi-amber"><div class="kpi-label">Outstanding</div><div class="kpi-val">₹3.8Cr</div></div><div class="kpi kpi-red"><div class="kpi-label">Overdue</div><div class="kpi-val">₹0.6Cr</div></div><div class="kpi kpi-green"><div class="kpi-label">Collected MTD</div><div class="kpi-val">₹4.2Cr</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Invoice No.</th><th>Customer</th><th>Amount</th><th>Due Date</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">INV-8821</td><td>Green Energy Ltd</td><td style="font-weight:700">₹1.25Cr</td><td>01-Jun-25</td><td><span class="tag tag-amber">Outstanding</span></td></tr><tr><td class="tbl-link" style="color:var(--red)">INV-8810</td><td>Rajasthan Solar</td><td style="font-weight:700">₹0.6Cr</td><td>10-May-25</td><td><span class="tag tag-red">Overdue</span></td></tr><tr><td class="tbl-link">INV-8800</td><td>SunPower Projects</td><td style="font-weight:700">₹2.0Cr</td><td>25-May-25</td><td><span class="tag tag-green">Paid</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-arPayment"><div class="page-header"><div><div class="page-title">AR Payments</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newARBtn">+ Record Receipt</button></div></div><div class="kpi-grid"><div class="kpi kpi-amber"><div class="kpi-label">AR Outstanding</div><div class="kpi-val">₹3.8Cr</div></div><div class="kpi kpi-red"><div class="kpi-label">Overdue</div><div class="kpi-val">₹0.6Cr</div></div><div class="kpi kpi-green"><div class="kpi-label">Collected MTD</div><div class="kpi-val">₹4.2Cr</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Customer</th><th>Invoice</th><th>Amount</th><th>Due Date</th><th>Action</th></tr></thead><tbody><tr><td>Green Energy Ltd</td><td>INV-8821</td><td>₹1.25Cr</td><td>01-Jun-25</td><td><button class="btn btn-ghost btn-xs">Send Reminder</button></td></tr><tr style="background:var(--red-lt)"><td>Rajasthan Solar</td><td>INV-8810</td><td>₹0.6Cr</td><td>10-May-25 (OVERDUE)</td><td><button class="btn btn-danger btn-xs escalate-btn">Escalate</button></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-finDashboard"><div class="page-header"><div><div class="page-title">Finance Dashboard</div><div class="page-sub">FY 2025-26</div></div></div><div class="kpi-grid"><div class="kpi kpi-green"><div class="kpi-label">Revenue MTD</div><div class="kpi-val">₹6.8Cr</div></div><div class="kpi kpi-red"><div class="kpi-label">COGS MTD</div><div class="kpi-val">₹5.1Cr</div></div><div class="kpi kpi-amber"><div class="kpi-label">Gross Margin</div><div class="kpi-val">25%</div></div><div class="kpi"><div class="kpi-label">EBITDA</div><div class="kpi-val">₹1.25Cr</div></div></div><div class="grid2"><div class="card"><div class="card-title">P&amp;L Summary</div><div class="tbl-wrap"><table><tbody><tr><td style="font-weight:600">Revenue</td><td style="text-align:right;color:var(--green);font-weight:700">₹6,80,00,000</td></tr><tr><td style="color:var(--t2);padding-left:16px">Raw Material</td><td style="text-align:right;color:var(--red)">₹3,80,00,000</td></tr><tr><td style="color:var(--t2);padding-left:16px">Labour</td><td style="text-align:right;color:var(--red)">₹60,00,000</td></tr><tr style="background:var(--green-lt)"><td style="font-weight:700">Gross Profit</td><td style="text-align:right;font-weight:700;color:var(--green)">₹1,70,00,000</td></tr><tr style="background:var(--blue-lt)"><td style="font-weight:800;color:var(--navy)">EBITDA</td><td style="text-align:right;font-weight:800;color:var(--navy)">₹1,25,00,000</td></tr></tbody></table></div></div><div class="card"><div class="card-title">Revenue Trend (₹Cr)</div><div class="chart-bars"><div class="bar-col"><div class="bar-val">5.1</div><div class="bar-fill" style="height:74%;background:var(--blue)"></div><div class="bar-label">Jan</div></div><div class="bar-col"><div class="bar-val">4.8</div><div class="bar-fill" style="height:70%;background:var(--blue)"></div><div class="bar-label">Feb</div></div><div class="bar-col"><div class="bar-val">5.6</div><div class="bar-fill" style="height:81%;background:var(--blue)"></div><div class="bar-label">Mar</div></div><div class="bar-col"><div class="bar-val">6.1</div><div class="bar-fill" style="height:88%;background:var(--blue)"></div><div class="bar-label">Apr</div></div><div class="bar-col"><div class="bar-val">6.8</div><div class="bar-fill" style="height:99%;background:var(--green)"></div><div class="bar-label">May</div></div><div class="bar-col"><div class="bar-val">7.5*</div><div class="bar-fill" style="height:100%;background:var(--bg2);border:2px dashed var(--blue)"></div><div class="bar-label">Jun*</div></div></div></div></div></div>
+
+<div class="page" id="pg-gl"><div class="page-header"><div><div class="page-title">General Ledger</div></div><div class="actions"><button class="btn btn-ghost btn-sm" data-page="journalEntry">✏️ New Journal</button></div></div><div class="card"><div class="tabs"><div class="tab active gl-tab" data-panel="glCoA">Chart of Accounts</div><div class="tab gl-tab" data-panel="glTB">Trial Balance</div><div class="tab gl-tab" data-panel="glTxn">Transactions</div></div><div class="tab-panel active" id="glCoA"><div class="tbl-wrap"><table><thead><tr><th>Account Code</th><th>Account Name</th><th>Type</th><th>Dr Balance</th><th>Cr Balance</th></tr></thead><tbody><tr><td colspan="5" style="background:var(--navy);color:#fff;font-size:10px;padding:6px 14px;font-weight:700">ASSETS</td></tr><tr><td class="tbl-link">1001</td><td>Cash in Hand</td><td>Asset</td><td>₹12,40,000</td><td>—</td></tr><tr><td class="tbl-link">1002</td><td>Bank — HDFC</td><td>Asset</td><td>₹1,07,60,000</td><td>—</td></tr><tr><td class="tbl-link">1100</td><td>Accounts Receivable</td><td>Asset</td><td>₹3,80,00,000</td><td>—</td></tr><tr><td colspan="5" style="background:var(--navy);color:#fff;font-size:10px;padding:6px 14px;font-weight:700">LIABILITIES</td></tr><tr><td class="tbl-link">3001</td><td>Accounts Payable</td><td>Liability</td><td>—</td><td>₹2,40,00,000</td></tr><tr><td colspan="5" style="background:var(--navy);color:#fff;font-size:10px;padding:6px 14px;font-weight:700">INCOME / EXPENSE</td></tr><tr><td class="tbl-link">4001</td><td>Revenue — Module Sales</td><td>Income</td><td>—</td><td>₹6,80,00,000</td></tr><tr><td class="tbl-link">5001</td><td>Raw Material Cost</td><td>Expense</td><td>₹3,80,00,000</td><td>—</td></tr></tbody></table></div></div><div class="tab-panel" id="glTB"><div class="tbl-wrap"><table><thead><tr><th>Account</th><th>Opening Dr</th><th>Period Dr</th><th>Period Cr</th><th>Closing Dr</th><th>Closing Cr</th></tr></thead><tbody><tr><td>Cash &amp; Bank</td><td>₹1.1Cr</td><td>₹4.2Cr</td><td>₹3.8Cr</td><td>₹1.2Cr</td><td>—</td></tr><tr><td>AR</td><td>₹3.2Cr</td><td>₹6.8Cr</td><td>₹6.2Cr</td><td>₹3.8Cr</td><td>—</td></tr><tr><td>AP</td><td>—</td><td>₹1.8Cr</td><td>₹2.1Cr</td><td>—</td><td>₹2.4Cr</td></tr><tr style="background:var(--blue-lt);font-weight:700"><td>TOTAL</td><td>₹12.2Cr</td><td>₹12.8Cr</td><td>₹12.2Cr</td><td>₹13.4Cr</td><td>₹13.4Cr</td></tr></tbody></table></div></div><div class="tab-panel" id="glTxn"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>JE No.</th><th>Description</th><th>Dr Account</th><th>Cr Account</th><th>Amount</th></tr></thead><tbody><tr><td>15-May</td><td class="tbl-link" data-page="journalEntry">JE-4421</td><td>GRN Receipt</td><td>Inventory</td><td>GR/IR</td><td>₹18.4L</td></tr><tr><td>14-May</td><td class="tbl-link">JE-4420</td><td>Sales Invoice INV-8821</td><td>AR</td><td>Revenue</td><td>₹1.25Cr</td></tr></tbody></table></div></div></div></div>
+
+<div class="page" id="pg-journalEntry"><div class="page-header"><div><div class="page-title">Journal Entries</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newJEBtn">+ New Journal Entry</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>JE No.</th><th>Date</th><th>Type</th><th>Description</th><th>Amount</th><th>Status</th><th>Posted By</th></tr></thead><tbody><tr><td class="tbl-link">JE-4421</td><td>15-May-25</td><td><span class="tag tag-blue">Purchase</span></td><td>GRN Receipt B-892</td><td>₹18.4L</td><td><span class="tag tag-green">Posted</span></td><td>System</td></tr><tr><td class="tbl-link">JE-4420</td><td>14-May-25</td><td><span class="tag tag-green">Sales</span></td><td>AR Invoice INV-8821</td><td>₹1.25Cr</td><td><span class="tag tag-green">Posted</span></td><td>System</td></tr><tr><td class="tbl-link">JE-4419</td><td>13-May-25</td><td><span class="tag tag-amber">Manual</span></td><td>Depreciation May 2025</td><td>₹8.5L</td><td><span class="tag tag-amber">Pending Approval</span></td><td>Kavita Joshi</td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-bankRecon"><div class="page-header"><div><div class="page-title">Bank Reconciliation</div><div class="page-sub">HDFC · May 2025</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="importStmtBtn">📤 Import Statement</button></div></div><div class="grid2" style="margin-bottom:16px"><div class="card"><div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">Bank Balance</div><div style="font-size:28px;font-weight:800;color:var(--green)">₹1,07,60,000</div></div><div class="card"><div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">GL Book Balance</div><div style="font-size:28px;font-weight:800;color:var(--blue)">₹1,05,40,000</div><div style="font-size:11px;color:var(--t3)">Difference: <span style="color:var(--amber);font-weight:700">₹2,20,000</span></div></div></div><div class="card"><div class="card-title">Unreconciled Transactions</div><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Bank Stmt</th><th>GL Book</th><th>Difference</th><th>Action</th></tr></thead><tbody><tr><td>14-May</td><td>SolarTech Payment</td><td>₹18.4L (Cr)</td><td>₹18.4L (Cr)</td><td style="color:var(--green)">₹0</td><td><span class="tag tag-green">Matched</span></td></tr><tr style="background:var(--amber-lt)"><td>13-May</td><td>Cheque #442281</td><td>₹2.2L (Dr)</td><td>—</td><td style="color:var(--amber);font-weight:700">₹2.2L</td><td><button class="btn btn-warn btn-xs">Match</button></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-budgeting"><div class="page-header"><div><div class="page-title">Budgeting &amp; Forecasting</div><div class="page-sub">FY 2025-26</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New Budget</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Cost Center</th><th>Category</th><th>Annual Budget</th><th>Apr Actual</th><th>May Actual</th><th>YTD Variance</th><th>Utilization</th></tr></thead><tbody><tr><td>CC-001 Manufacturing</td><td>Raw Materials</td><td>₹42Cr</td><td>₹3.4Cr</td><td>₹3.8Cr</td><td style="color:var(--red)">-₹0.2Cr</td><td><div class="prog-bar" style="width:80px;display:inline-block"><div class="prog-fill" style="width:103%;background:var(--red)"></div></div></td></tr><tr><td>CC-001 Manufacturing</td><td>Labour</td><td>₹7.2Cr</td><td>₹58L</td><td>₹60L</td><td style="color:var(--green)">+₹0.02Cr</td><td><div class="prog-bar" style="width:80px;display:inline-block"><div class="prog-fill" style="width:98%;background:var(--green)"></div></div></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-taxReports"><div class="page-header"><div><div class="page-title">Tax Reports — GST</div><div class="page-sub">GSTIN: 24AABCS1234A1Z5</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="fileGSTBtn">📤 File GSTR-1</button></div></div><div class="kpi-grid"><div class="kpi"><div class="kpi-label">Output GST</div><div class="kpi-val" style="color:var(--blue)">₹34L</div></div><div class="kpi"><div class="kpi-label">Input Tax Credit</div><div class="kpi-val" style="color:var(--green)">₹28.4L</div></div><div class="kpi kpi-amber"><div class="kpi-label">Net Tax Payable</div><div class="kpi-val">₹5.6L</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Taxable Value</th><th>GST</th><th>Total</th></tr></thead><tbody><tr><td>INV-8821</td><td>Green Energy Ltd</td><td>₹1.19Cr</td><td>₹5.95L (5%)</td><td>₹1.25Cr</td></tr><tr><td>INV-8820</td><td>SunPower Projects</td><td>₹1.90Cr</td><td>₹9.5L (5%)</td><td>₹2.0Cr</td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-empDirectory"><div class="page-header"><div><div class="page-title">Employee Directory</div><div class="page-sub">248 employees</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newEmpBtn">+ New Employee</button></div></div><div class="kpi-grid"><div class="kpi"><div class="kpi-label">Total</div><div class="kpi-val">248</div></div><div class="kpi kpi-green"><div class="kpi-label">Present Today</div><div class="kpi-val">231</div></div><div class="kpi kpi-amber"><div class="kpi-label">On Leave</div><div class="kpi-val">12</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Emp ID</th><th>Name</th><th>Department</th><th>Role</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">EMP-001</td><td style="font-weight:600">Ramesh Patel</td><td>Procurement</td><td>Manager</td><td><span class="tag tag-green">Present</span></td></tr><tr><td class="tbl-link">EMP-002</td><td style="font-weight:600">Priya Sharma</td><td>Quality</td><td>QC Engineer</td><td><span class="tag tag-green">Present</span></td></tr><tr><td class="tbl-link">EMP-003</td><td style="font-weight:600">Ankit Mehta</td><td>Production</td><td>Line Supervisor</td><td><span class="tag tag-green">Present</span></td></tr><tr><td class="tbl-link">EMP-004</td><td style="font-weight:600">Kavita Joshi</td><td>Finance</td><td>Accounts Executive</td><td><span class="tag tag-amber">On Leave</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-attendance"><div class="page-header"><div><div class="page-title">Attendance</div><div class="page-sub">15 May 2025</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="markAttnBtn">✓ Mark Attendance</button></div></div><div class="kpi-grid"><div class="kpi kpi-green"><div class="kpi-label">Present</div><div class="kpi-val">231</div></div><div class="kpi kpi-amber"><div class="kpi-label">Absent</div><div class="kpi-val">12</div></div><div class="kpi kpi-blue"><div class="kpi-label">Late Arrivals</div><div class="kpi-val">8</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Emp ID</th><th>Name</th><th>In Time</th><th>Out Time</th><th>Hours</th><th>Status</th></tr></thead><tbody><tr><td>EMP-001</td><td>Ramesh Patel</td><td>09:02</td><td>—</td><td>6.5hr</td><td><span class="tag tag-green">Present</span></td></tr><tr><td>EMP-002</td><td>Priya Sharma</td><td>07:58</td><td>—</td><td>8.0hr</td><td><span class="tag tag-green">Present</span></td></tr><tr><td>EMP-003</td><td>Ankit Mehta</td><td>08:15</td><td>—</td><td>7.7hr</td><td><span class="tag tag-blue">Late</span></td></tr><tr><td>EMP-004</td><td>Kavita Joshi</td><td>—</td><td>—</td><td>—</td><td><span class="tag tag-amber">On Leave</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-leave"><div class="page-header"><div><div class="page-title">Leave Management</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="applyLeaveBtn">+ Apply Leave</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>App No.</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead><tbody><tr><td>LV-441</td><td>Kavita Joshi</td><td>Annual</td><td>15-May</td><td>17-May</td><td>3</td><td><span class="tag tag-green">Approved</span></td><td><button class="btn btn-ghost btn-xs">View</button></td></tr><tr><td>LV-442</td><td>Vijay Kumar</td><td>Sick</td><td>16-May</td><td>16-May</td><td>1</td><td><span class="tag tag-amber">Pending</span></td><td><button class="btn btn-success btn-xs approve-btn">Approve</button> <button class="btn btn-danger btn-xs">Reject</button></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-payroll"><div class="page-header"><div><div class="page-title">Payroll — May 2025</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="runPayrollBtn">▶ Run Payroll</button></div></div><div class="kpi-grid"><div class="kpi"><div class="kpi-label">Gross Salary</div><div class="kpi-val">₹1.48Cr</div></div><div class="kpi kpi-red"><div class="kpi-label">Deductions</div><div class="kpi-val">₹24L</div></div><div class="kpi kpi-green"><div class="kpi-label">Net Payable</div><div class="kpi-val">₹1.24Cr</div></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Employee</th><th>Gross</th><th>PF</th><th>TDS</th><th>Net Pay</th><th>Status</th></tr></thead><tbody><tr><td>Ramesh Patel</td><td>₹96,000</td><td>₹7,200</td><td>₹5,800</td><td style="font-weight:700">₹83,000</td><td><span class="tag tag-amber">Pending</span></td></tr><tr><td>Priya Sharma</td><td>₹71,000</td><td>₹5,400</td><td>₹2,100</td><td style="font-weight:700">₹63,500</td><td><span class="tag tag-amber">Pending</span></td></tr><tr><td>Ankit Mehta</td><td>₹60,000</td><td>₹4,560</td><td>₹1,440</td><td style="font-weight:700">₹54,000</td><td><span class="tag tag-amber">Pending</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-recruitment"><div class="page-header"><div><div class="page-title">Recruitment Pipeline</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="postJobBtn">+ Post Job</button></div></div><div class="pipeline"><div class="pipe-stage"><span class="pipe-count">5</span>Open</div><div class="pipe-stage active"><span class="pipe-count">12</span>Applications</div><div class="pipe-stage"><span class="pipe-count">6</span>Screening</div><div class="pipe-stage"><span class="pipe-count">3</span>Interviews</div><div class="pipe-stage"><span class="pipe-count">1</span>Offer</div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Job ID</th><th>Role</th><th>Dept</th><th>Candidates</th><th>Priority</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">JOB-021</td><td>QC Engineer — Flash Test</td><td>Quality</td><td>4</td><td><span class="tag tag-red">High</span></td><td><span class="tag tag-blue">Interviewing</span></td></tr><tr><td class="tbl-link">JOB-022</td><td>Production Supervisor</td><td>Manufacturing</td><td>3</td><td><span class="tag tag-amber">Medium</span></td><td><span class="tag tag-blue">Screening</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-itemMaster"><div class="page-header"><div><div class="page-title">Item Master</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newItemBtn">+ New Item</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Code</th><th>Description</th><th>Category</th><th>UOM</th><th>HSN</th><th>GST%</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">RM-001</td><td>Solar Cells 182mm Monocrystalline</td><td>Raw Material</td><td>Pcs</td><td>85414020</td><td>5%</td><td><span class="tag tag-green">Active</span></td></tr><tr><td class="tbl-link">RM-002</td><td>Toughened Glass 3.2mm</td><td>Raw Material</td><td>Pcs</td><td>70071900</td><td>18%</td><td><span class="tag tag-green">Active</span></td></tr><tr><td class="tbl-link">RM-003</td><td>EVA Film Standard Grade</td><td>Raw Material</td><td>Rolls</td><td>39201090</td><td>18%</td><td><span class="tag tag-green">Active</span></td></tr><tr><td class="tbl-link">FG-001</td><td>Solar Module 600W Mono PERC</td><td>Finished Good</td><td>Pcs</td><td>85414020</td><td>5%</td><td><span class="tag tag-green">Active</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-vendorMaster"><div class="page-header"><div><div class="page-title">Vendor Master</div></div><div class="actions"><button class="btn btn-primary btn-sm" id="newVendorBtn">+ New Vendor</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Category</th><th>City</th><th>OTD%</th><th>Rating</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">VND-001</td><td style="font-weight:600">SolarTech Cells Pvt Ltd</td><td>Solar Cells</td><td>Bangalore</td><td>88%</td><td>⭐⭐⭐⭐</td><td><span class="tag tag-green">Approved</span></td></tr><tr><td class="tbl-link">VND-002</td><td style="font-weight:600">GlassCraft Industries</td><td>Glass</td><td>Surat</td><td>96%</td><td>⭐⭐⭐⭐⭐</td><td><span class="tag tag-green">Approved</span></td></tr><tr><td class="tbl-link">VND-003</td><td style="font-weight:600">EVA Industries</td><td>EVA Film</td><td>Vadodara</td><td>82%</td><td>⭐⭐⭐</td><td><span class="tag tag-green">Approved</span></td></tr><tr><td class="tbl-link">VND-004</td><td style="font-weight:600">RibbonTech Materials</td><td>Ribbon Wire</td><td>Pune</td><td>74%</td><td>⭐⭐⭐</td><td><span class="tag tag-amber">Under Review</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-customerMaster"><div class="page-header"><div><div class="page-title">Customer Master</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New Customer</button></div></div><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>City</th><th>Credit Limit</th><th>Outstanding</th><th>Status</th></tr></thead><tbody><tr><td class="tbl-link">CUS-001</td><td>Green Energy Ltd</td><td>EPC</td><td>Ahmedabad</td><td>₹10Cr</td><td>₹1.25Cr</td><td><span class="tag tag-green">Active</span></td></tr><tr><td class="tbl-link">CUS-002</td><td>SunPower Projects</td><td>Developer</td><td>Mumbai</td><td>₹8Cr</td><td>₹0</td><td><span class="tag tag-green">Active</span></td></tr><tr><td class="tbl-link">CUS-003</td><td>Rajasthan Solar Ltd</td><td>IPP</td><td>Jaipur</td><td>₹5Cr</td><td>₹0.6Cr</td><td><span class="tag tag-amber">Payment Hold</span></td></tr></tbody></table></div></div></div>
+
+<div class="page" id="pg-bomMaster"><div class="page-header"><div><div class="page-title">BOM Master</div></div><div class="actions"><button class="btn btn-primary btn-sm">+ New BOM</button></div></div><div class="card"><div style="margin-bottom:12px;font-size:12px;color:var(--t2)">BOM: <strong style="color:var(--navy)">FG-001 — Solar Module 600W Mono PERC</strong> &nbsp;<span class="tag tag-green">v3.2 Active</span></div><div class="tbl-wrap"><table><thead><tr><th>Level</th><th>Code</th><th>Description</th><th>Qty/Unit</th><th>UOM</th><th>Wastage%</th></tr></thead><tbody><tr><td>1</td><td>RM-001</td><td>Solar Cells 182mm</td><td>120</td><td>Pcs</td><td>1.5%</td></tr><tr><td>1</td><td>RM-002</td><td>Toughened Glass</td><td>1</td><td>Pcs</td><td>0.5%</td></tr><tr><td>1</td><td>RM-003</td><td>EVA Film</td><td>2</td><td>Rolls</td><td>2%</td></tr><tr><td>1</td><td>RM-004</td><td>Backsheet</td><td>1</td><td>Rolls</td><td>1%</td></tr><tr><td>1</td><td>RM-005</td><td>Ribbon Wire</td><td>0.12</td><td>Kg</td><td>3%</td></tr><tr><td>1</td><td>RM-006</td><td>Junction Box</td><td>1</td><td>Pcs</td><td>0%</td></tr></tbody></table></div></div></div>
+
+<!-- ═══ SETTINGS ═══ -->
+<div class="page" id="pg-settings"><div class="page-header"><div><div class="page-title">Settings &amp; Administration</div></div></div>
+  <div class="tabs" id="settingsTabs">
+    <div class="tab active stab" data-panel="s-company">🏢 Company</div>
+    <div class="tab stab" data-panel="s-roles">🔑 Roles</div>
+    <div class="tab stab" data-panel="s-approval">✅ Approvals</div>
+    <div class="tab stab" data-panel="s-integrations">🔌 Integrations</div>
+    <div class="tab stab" data-panel="s-audit">📋 Audit</div>
+  </div>
+  <div class="tab-panel active" id="s-company"><div class="card"><div class="section-title">Company Profile</div><div class="form-row"><div class="form-group"><label class="form-label">Company Name</label><input class="inp" value="SolarOS Manufacturing Pvt Ltd" style="margin:0"></div><div class="form-group"><label class="form-label">GSTIN</label><input class="inp" value="24AABCS1234A1Z5" style="margin:0"></div></div><div class="form-row"><div class="form-group"><label class="form-label">Financial Year Start</label><select class="inp" style="margin:0"><option>April</option><option>January</option></select></div><div class="form-group"><label class="form-label">Base Currency</label><select class="inp" style="margin:0"><option>INR</option><option>USD</option></select></div></div><button class="btn btn-primary btn-sm" id="saveCompanyBtn">Save Changes</button></div></div>
+  <div class="tab-panel" id="s-roles"><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Role</th><th>Users</th><th>Purchase</th><th>Inventory</th><th>Production</th><th>Quality</th><th>Finance</th><th>Admin</th></tr></thead><tbody><tr><td style="font-weight:700">Super Admin</td><td>2</td><td><span class="tag tag-green">Full</span></td><td><span class="tag tag-green">Full</span></td><td><span class="tag tag-green">Full</span></td><td><span class="tag tag-green">Full</span></td><td><span class="tag tag-green">Full</span></td><td><span class="tag tag-green">Full</span></td></tr><tr><td style="font-weight:700">Procurement Mgr</td><td>5</td><td><span class="tag tag-green">Full</span></td><td><span class="tag tag-blue">View</span></td><td><span class="tag tag-gray">None</span></td><td><span class="tag tag-gray">None</span></td><td><span class="tag tag-blue">View</span></td><td><span class="tag tag-gray">None</span></td></tr><tr><td style="font-weight:700">QC Engineer</td><td>8</td><td><span class="tag tag-gray">None</span></td><td><span class="tag tag-blue">View</span></td><td><span class="tag tag-blue">View</span></td><td><span class="tag tag-green">Full</span></td><td><span class="tag tag-gray">None</span></td><td><span class="tag tag-gray">None</span></td></tr></tbody></table></div></div></div>
+  <div class="tab-panel" id="s-approval"><div class="card"><div class="tbl-wrap"><table><thead><tr><th>Document</th><th>Auto-Approve</th><th>L1</th><th>L2</th><th>L3</th></tr></thead><tbody><tr><td>Purchase Order</td><td>None</td><td>Procure Mgr (&lt;₹10L)</td><td>Finance Head (&lt;₹50L)</td><td>MD (&gt;₹50L)</td></tr><tr><td>Sales Order</td><td>&lt;₹5L</td><td>Sales Manager</td><td>Commercial Head</td><td>—</td></tr><tr><td>Journal Entry</td><td>System only</td><td>Finance Manager</td><td>CFO (&gt;₹10L)</td><td>—</td></tr></tbody></table></div></div></div>
+  <div class="tab-panel" id="s-integrations"><div class="card"><div class="grid2"><div style="background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:14px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:12px">Tally Prime</div><div style="font-size:10px;color:var(--t3)">Finance sync</div></div><span class="tag tag-green">Connected</span></div><div style="background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:14px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:12px">Flash Tester API</div><div style="font-size:10px;color:var(--t3)">Quality data</div></div><span class="tag tag-green">Connected</span></div><div style="background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:14px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:12px">Azure AD / SSO</div><div style="font-size:10px;color:var(--t3)">Identity</div></div><span class="tag tag-green">Connected</span></div><div style="background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);padding:14px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:12px">GST e-Invoice</div><div style="font-size:10px;color:var(--t3)">NIC Integration</div></div><span class="tag tag-amber">Auth Pending</span></div></div></div></div>
+  <div class="tab-panel" id="s-audit"><div class="card"><div class="card-title">System Audit Log</div><div class="tbl-wrap"><table><thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Module</th><th>Record</th><th>IP</th></tr></thead><tbody><tr><td>15-May 15:42</td><td>Amit Kumar</td><td><span class="tag tag-blue">Login</span></td><td>Auth</td><td>Session started</td><td>192.168.1.1</td></tr><tr><td>15-May 14:22</td><td>Ankit Shah</td><td><span class="tag tag-green">Approved</span></td><td>Purchase</td><td>PO-2487</td><td>192.168.1.10</td></tr><tr><td>15-May 13:30</td><td>Priya Sharma</td><td><span class="tag tag-red">Failed IQC</span></td><td>Quality</td><td>IQC-438</td><td>192.168.1.22</td></tr></tbody></table></div></div></div>
+</div>
+
+<!-- ═══ PROFILE ═══ -->
+<div class="page" id="pg-profile"><div class="page-header"><div><div class="page-title">My Profile</div></div></div>
+  <div class="grid2">
+    <div class="card"><div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--bd)"><div style="width:64px;height:64px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff">AK</div><div><div style="font-size:18px;font-weight:700;color:var(--navy)">Amit Kumar</div><div style="color:var(--blue);font-size:12px;font-weight:600">Super Administrator</div><div style="color:var(--t3);font-size:11px;margin-top:2px">amit.kumar@solaros.in</div><div style="margin-top:6px"><span class="tag tag-green">● Active</span></div></div></div>
+    <div class="section-title">Personal Information</div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Full Name</label><input class="inp" value="Amit Kumar" style="margin:0"></div><div class="form-group"><label class="form-label">Employee ID</label><input class="inp" value="EMP-001" style="margin:0" readonly></div></div>
+    <div class="form-row"><div class="form-group"><label class="form-label">Department</label><input class="inp" value="Management" style="margin:0"></div><div class="form-group"><label class="form-label">Phone</label><input class="inp" value="+91-9876543210" style="margin:0"></div></div>
+    <button class="btn btn-primary btn-sm" id="saveProfileBtn">💾 Save Profile</button></div>
+    <div class="card"><div class="section-title">Security</div>
+    <div class="form-group"><label class="form-label">CURRENT PASSWORD</label><input class="inp" type="password" placeholder="••••••••" style="margin:0"></div>
+    <div class="form-group"><label class="form-label">NEW PASSWORD</label><input class="inp" type="password" placeholder="Min 8 chars" style="margin:0"></div>
+    <button class="btn btn-navy btn-sm" id="changePwdBtn">🔒 Change Password</button>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:12px;font-weight:700">MFA Status</div><span class="tag tag-green">Enabled</span></div></div></div>
+  </div>
+</div>
+
+    </div><!-- end content -->
+  </div><!-- end app-body -->
+</div><!-- end app -->
+
+<script>
+// ══════════════════════════════════════════
+// CORE ENGINE — ALL EVENTS DELEGATED
+// ══════════════════════════════════════════
+
+// TOAST
+function toast(msg, type) {
+  var wrap = document.getElementById('toastWrap');
+  var el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'info');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(function() { el.classList.add('show'); }, 10);
+  setTimeout(function() { el.classList.remove('show'); setTimeout(function() { el.remove(); }, 300); }, 3200);
+}
+
+// NAVIGATION
+function nav(pageId) {
+  document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
+  var target = document.getElementById('pg-' + pageId);
+  if (target) { target.classList.add('active'); }
+  document.querySelectorAll('.nav-item[data-page], .nav-sub-item[data-page]').forEach(function(n) {
+    n.classList.toggle('active', n.dataset.page === pageId);
+  });
+  document.getElementById('notifPanel').classList.remove('open');
+}
+
+// MODAL
+function openModal(title, body, footerBtns) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = body;
+  document.getElementById('modalFooter').innerHTML = (footerBtns || '<button class="btn btn-ghost" id="modalCancelInner">Cancel</button><button class="btn btn-primary" id="modalSubmitInner">Submit</button>');
+  document.getElementById('modal').classList.add('open');
+  var cancel = document.getElementById('modalCancelInner');
+  if (cancel) cancel.addEventListener('click', closeModal);
+  var submit = document.getElementById('modalSubmitInner');
+  if (submit) submit.addEventListener('click', function() { closeModal(); toast('Saved successfully', 'success'); });
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+// TABS (PO Detail)
+function initPODetailTabs() {
+  document.querySelectorAll('.pod-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.pod-tab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      var panels = ['poGeneral','poItems','poApproval','poAudit','poAttach','poNotes'];
+      panels.forEach(function(p) { var el = document.getElementById(p); if(el) el.classList.remove('active'); });
+      var target = document.getElementById(tab.dataset.panel);
+      if (target) target.classList.add('active');
+    });
+  });
+}
+
+// GL TABS
+function initGLTabs() {
+  document.querySelectorAll('.gl-tab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.gl-tab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      ['glCoA','glTB','glTxn'].forEach(function(p) { var el = document.getElementById(p); if(el) el.classList.remove('active'); });
+      var target = document.getElementById(tab.dataset.panel);
+      if (target) target.classList.add('active');
+    });
+  });
+}
+
+// SETTINGS TABS
+function initSettingsTabs() {
+  document.querySelectorAll('.stab').forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      document.querySelectorAll('.stab').forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      ['s-company','s-roles','s-approval','s-integrations','s-audit'].forEach(function(p) { var el = document.getElementById(p); if(el) el.classList.remove('active'); });
+      var target = document.getElementById(tab.dataset.panel);
+      if (target) target.classList.add('active');
+    });
+  });
+}
+
+// AI COPILOT
+var aiReplies = {
+  'What are my top 3 supply risks this week?': '🔴 Top 3 Supply Risks:\n\n1. EVA Film — 120 rolls vs 200 min. 2-day production stop risk.\n\n2. Ribbon Wire — PO-2491 approval delayed 4hr. Delivery gap likely.\n\n3. Solar Cells (SolarTech) — Batch B-881 rejected. Supplier quality trending down.',
+  'Suggest items to reorder based on stock levels': '📦 Reorder Recommendations:\n\n• EVA Film — Order 600 rolls urgently\n• Ribbon Wire — Expedite PO-2491\n• Junction Box — Reorder point approaching\n\n💡 Bulk order EVA + Ribbon together for 5% volume discount.',
+  'What is the demand forecast for next month?': '📈 June 2025 Forecast:\n\n• 600W Modules: 8,400 pcs (+18% vs May)\n• 595W Modules: 3,200 pcs (+8% vs May)\n\nAction: Scale production to 2,400 pcs/day from May 25.',
+  'Which production lines need maintenance?': '🔧 Maintenance Alerts:\n\n🔴 Line 3 Laminator — Vibration anomaly. PM within 48 hrs.\n🟡 Line 2 Stringer — 500hr PM due in 3 days.\n✅ Lines 1 & 4 — Normal.',
+  'Summarize financial health': '💰 Financial Health:\n\n✅ Revenue MTD ₹6.8Cr (on track)\n⚠️ AR ₹3.8Cr (₹0.6Cr overdue — Rajasthan Solar)\n✅ Gross Margin 25% (above target)\n🟡 AP ₹2.4Cr — SolarTech due May 25'
+};
+
+function sendAIMessage(q) {
+  var chat = document.getElementById('aiChat');
+  if (!q) return;
+  chat.innerHTML += '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end"><div style="background:var(--blue);border-radius:12px 4px 12px 12px;padding:10px 14px;font-size:12px;color:#fff;max-width:85%">' + q + '</div><div style="width:28px;height:28px;background:var(--bg2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:1px solid var(--bd);flex-shrink:0">AK</div></div>';
+  var reply = aiReplies[q] || 'Analyzing your query across all ERP modules...\n\nBased on current SolarOS data, I recommend reviewing the relevant module dashboard for detailed insights. Key metrics look stable except for EVA Film stock and Line 3 OEE.';
+  setTimeout(function() {
+    chat.innerHTML += '<div style="display:flex;gap:8px;align-items:flex-start"><div style="width:28px;height:28px;background:var(--blue);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">🤖</div><div style="background:var(--white);border:1px solid var(--bd);border-radius:4px 12px 12px 12px;padding:10px 14px;font-size:12px;max-width:85%;box-shadow:var(--shadow);white-space:pre-line">' + reply + '</div></div>';
+    chat.scrollTop = chat.scrollHeight;
+  }, 600);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// GENERIC FORM HTML
+function genericForm(fields) {
+  var html = '';
+  for (var i = 0; i < fields.length; i += 2) {
+    html += '<div class="form-row">';
+    for (var j = i; j < Math.min(i + 2, fields.length); j++) {
+      html += '<div class="form-group"><label class="form-label">' + fields[j].label + '</label>';
+      if (fields[j].type === 'select') {
+        html += '<select class="inp" style="margin:0"><option>' + fields[j].options.join('</option><option>') + '</option></select>';
+      } else if (fields[j].type === 'textarea') {
+        html += '<textarea class="inp" style="margin:0;height:60px" placeholder="' + (fields[j].placeholder || '') + '"></textarea>';
+      } else {
+        html += '<input class="inp" type="' + (fields[j].type || 'text') + '" placeholder="' + (fields[j].placeholder || '') + '" value="' + (fields[j].value || '') + '" style="margin:0">';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+// ══════════════════════════════════════════
+// INIT ON DOM READY
+// ══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+
+  // DATE
+  var d = new Date();
+  var el = document.getElementById('todayDate');
+  if (el) el.textContent = d.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+
+  // ── AUTH BUTTONS ──
+  document.getElementById('btnSignIn').addEventListener('click', function() {
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('mfaBox').style.display = 'block';
+  });
+  document.getElementById('btnForgot').addEventListener('click', function() {
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('forgotBox').style.display = 'block';
+  });
+  document.getElementById('btnSendReset').addEventListener('click', function() {
+    document.getElementById('forgotBox').style.display = 'none';
+    document.getElementById('loginBox').style.display = 'block';
+  });
+  document.getElementById('btnBackLogin').addEventListener('click', function() {
+    document.getElementById('forgotBox').style.display = 'none';
+    document.getElementById('loginBox').style.display = 'block';
+  });
+  document.getElementById('btnVerifyMFA').addEventListener('click', function() {
+    document.getElementById('auth').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    toast('Welcome back, Amit Kumar!', 'success');
+  });
+  document.getElementById('btnMFABack').addEventListener('click', function() {
+    document.getElementById('mfaBox').style.display = 'none';
+    document.getElementById('loginBox').style.display = 'block';
+  });
+
+  // ── TOPBAR BUTTONS ──
+  document.getElementById('topLogo').addEventListener('click', function() { nav('dashboard'); });
+  document.getElementById('toggleSidebarBtn').addEventListener('click', function() { document.getElementById('sidebar').classList.toggle('collapsed'); });
+  document.getElementById('notifBtn').addEventListener('click', function(e) {
+    e.stopPropagation();
+    document.getElementById('notifPanel').classList.toggle('open');
+  });
+  document.getElementById('settingsBtn').addEventListener('click', function() { nav('settings'); });
+  document.getElementById('avatarBtn').addEventListener('click', function() { nav('profile'); });
+  document.getElementById('helpBtn').addEventListener('click', function() { toast('Help documentation — coming soon', 'info'); });
+  var refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) refreshBtn.addEventListener('click', function() { toast('Dashboard refreshed', 'success'); });
+
+  // ── MODAL CLOSE ──
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+  // ── GLOBAL CLICK DELEGATION ──
+  document.addEventListener('click', function(e) {
+    var el = e.target;
+
+    // nav by data-page
+    var navEl = el.closest('[data-page]');
+    if (navEl && !el.closest('.overlay')) {
+      var pg = navEl.dataset.page;
+      if (pg) { nav(pg); return; }
+    }
+
+    // sidebar nav parents (dropdowns)
+    var parent = el.closest('.nav-parent');
+    if (parent) {
+      var subId = parent.dataset.sub;
+      var sub = document.getElementById(subId);
+      if (sub) {
+        var isOpen = sub.classList.contains('open');
+        document.querySelectorAll('.nav-sub').forEach(function(s) { s.classList.remove('open'); });
+        if (!isOpen) sub.classList.add('open');
+      }
+      return;
+    }
+
+    // close notif on outside click
+    if (!el.closest('#notifPanel') && !el.closest('#notifBtn')) {
+      document.getElementById('notifPanel').classList.remove('open');
+    }
+
+    // PO detail links
+    var poLink = el.closest('.po-detail-link');
+    if (poLink) {
+      var poNum = poLink.dataset.po;
+      if (poNum) {
+        document.getElementById('poDetailNum').textContent = poNum;
+        document.getElementById('poDetailTitle').textContent = 'Purchase Order ' + poNum;
+        nav('poDetail');
+        return;
+      }
+    }
+
+    // approve PO
+    var approveBtn = el.closest('.approve-po-btn');
+    if (approveBtn) {
+      var po = approveBtn.dataset.po;
+      toast((po || 'PO') + ' approved successfully', 'success');
+      var row = approveBtn.closest('tr');
+      if (row) {
+        var statusCell = row.querySelector('.tag');
+        if (statusCell) { statusCell.textContent = 'Approved'; statusCell.className = 'tag tag-green'; }
+        row.style.background = '';
+        approveBtn.parentElement.innerHTML = '<button class="btn btn-ghost btn-xs">View</button>';
+      }
+      return;
+    }
+
+    // generic approve buttons
+    var appBtn = el.closest('.approve-btn');
+    if (appBtn) { toast('Approved successfully', 'success'); return; }
+
+    // pay buttons
+    var payBtn = el.closest('.pay-btn');
+    if (payBtn) { toast('Payment initiated successfully', 'success'); return; }
+
+    // escalate buttons
+    var escBtn = el.closest('.escalate-btn');
+    if (escBtn) { toast('Escalation email sent', 'warn'); return; }
+
+    // nav-item-card (dashboard approvals)
+    var card = el.closest('.nav-item-card');
+    if (card && card.dataset.page) { nav(card.dataset.page); return; }
+  });
+
+  // ── PO BUTTONS ──
+  var newPOBtn = document.getElementById('newPOBtn');
+  if (newPOBtn) newPOBtn.addEventListener('click', function() {
+    openModal('New Purchase Order', genericForm([
+      {label:'Vendor', type:'select', options:['SolarTech Cells','GlassCraft','EVA Industries','RibbonTech']},
+      {label:'PO Date', type:'date', value:'2025-05-15'},
+      {label:'Item', type:'select', options:['Solar Cells 182mm','EVA Film','Toughened Glass','Ribbon Wire']},
+      {label:'Quantity', type:'number', placeholder:'Enter qty'},
+      {label:'Unit Price (₹)', type:'text', placeholder:'0.00'},
+      {label:'Delivery Date', type:'date'}
+    ]));
+  });
+
+  var exportPOBtn = document.getElementById('exportPOBtn');
+  if (exportPOBtn) exportPOBtn.addEventListener('click', function() { toast('Exported to Excel', 'success'); });
+
+  var clonePOBtn = document.getElementById('clonePOBtn');
+  if (clonePOBtn) clonePOBtn.addEventListener('click', function() { toast('PO cloned as PO-2496', 'success'); });
+
+  var printPOBtn = document.getElementById('printPOBtn');
+  if (printPOBtn) printPOBtn.addEventListener('click', function() { toast('Print dialog opening...', 'info'); });
+
+  var addNoteBtn = document.getElementById('addNoteBtn');
+  if (addNoteBtn) addNoteBtn.addEventListener('click', function() { toast('Note added successfully', 'success'); });
+
+  var attachZone = document.getElementById('attachZone');
+  if (attachZone) attachZone.addEventListener('click', function() { toast('File upload dialog would open', 'info'); });
+
+  // ── GRN BUTTON ──
+  var newGRNBtn = document.getElementById('newGRNBtn');
+  if (newGRNBtn) newGRNBtn.addEventListener('click', function() {
+    openModal('New GRN', genericForm([
+      {label:'Purchase Order', type:'select', options:['PO-2487','PO-2488','PO-2490']},
+      {label:'GRN Date', type:'date', value:'2025-05-15'},
+      {label:'Qty Received', type:'number', placeholder:'Qty'},
+      {label:'Vendor Batch No.', type:'text', placeholder:'Vendor batch ref'}
+    ]));
+  });
+
+  // ── AI COPILOT ──
+  var aiSendBtn = document.getElementById('aiSendBtn');
+  if (aiSendBtn) aiSendBtn.addEventListener('click', function() {
+    var inp = document.getElementById('aiInput');
+    var q = inp.value.trim();
+    if (q) { sendAIMessage(q); inp.value = ''; }
+  });
+
+  var aiInput = document.getElementById('aiInput');
+  if (aiInput) aiInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { var q = this.value.trim(); if (q) { sendAIMessage(q); this.value = ''; } }
+  });
+
+  document.querySelectorAll('.ai-quick-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      nav('aiCopilot');
+      sendAIMessage(btn.dataset.q);
+    });
+  });
+
+  var createWOBtn = document.getElementById('createWOBtn');
+  if (createWOBtn) createWOBtn.addEventListener('click', function() { toast('Maintenance work order created for Line 3', 'success'); });
+
+  // ── IQC ──
+  var newIQCBtn = document.getElementById('newIQCBtn');
+  if (newIQCBtn) newIQCBtn.addEventListener('click', function() {
+    openModal('New IQC Inspection', genericForm([
+      {label:'GRN Reference', type:'select', options:['GRN-1193','GRN-1192']},
+      {label:'Inspector', type:'text', value:'Ramesh K.'},
+      {label:'Result', type:'select', options:['Pass','Conditional Pass','Fail']},
+      {label:'Remarks', type:'textarea', placeholder:'Inspection notes'}
+    ]));
+  });
+
+  var inspectBtn = document.getElementById('inspectBtn');
+  if (inspectBtn) inspectBtn.addEventListener('click', function() {
+    openModal('Record IQC Result — IQC-441', genericForm([
+      {label:'GRN', type:'text', value:'GRN-1193'},
+      {label:'Inspector', type:'text', value:'Ramesh K.'},
+      {label:'Visual Inspection', type:'select', options:['Pass','Fail']},
+      {label:'Dimensional Check', type:'select', options:['Pass','Fail']},
+      {label:'Result', type:'select', options:['Pass','Conditional Pass','Fail']},
+      {label:'Remarks', type:'textarea', placeholder:'Enter findings'}
+    ]));
+  });
+
+  // ── SALES ──
+  var newSOBtn = document.getElementById('newSOBtn');
+  if (newSOBtn) newSOBtn.addEventListener('click', function() {
+    openModal('New Sales Order', genericForm([
+      {label:'Customer', type:'select', options:['Green Energy Ltd','SunPower Projects','Rajasthan Solar']},
+      {label:'Order Date', type:'date', value:'2025-05-15'},
+      {label:'Product', type:'select', options:['600W Mono Module','595W Mono Module','580W Bifacial']},
+      {label:'Quantity (Pcs)', type:'number', placeholder:'Units'}
+    ]));
+  });
+
+  // ── MASTERS ──
+  var newItemBtn = document.getElementById('newItemBtn');
+  if (newItemBtn) newItemBtn.addEventListener('click', function() {
+    openModal('New Item', genericForm([
+      {label:'Item Code', type:'text', placeholder:'Auto-generated'},
+      {label:'Category', type:'select', options:['Raw Material','Finished Good','Consumable']},
+      {label:'Description', type:'text', placeholder:'Full description'},
+      {label:'UOM', type:'select', options:['Pcs','Rolls','Kg','Metres']},
+      {label:'HSN Code', type:'text', placeholder:'HSN'},
+      {label:'GST%', type:'select', options:['5%','12%','18%']}
+    ]));
+  });
+
+  var newVendorBtn = document.getElementById('newVendorBtn');
+  if (newVendorBtn) newVendorBtn.addEventListener('click', function() {
+    openModal('New Vendor', genericForm([
+      {label:'Vendor Name', type:'text', placeholder:'Company name'},
+      {label:'Category', type:'text', placeholder:'e.g. Solar Cells'},
+      {label:'Contact Phone', type:'text', placeholder:'+91-XXXXXXXXXX'},
+      {label:'GST Number', type:'text', placeholder:'GST No.'}
+    ]));
+  });
+
+  // ── FINANCE ──
+  var newJEBtn = document.getElementById('newJEBtn');
+  if (newJEBtn) newJEBtn.addEventListener('click', function() {
+    openModal('New Journal Entry', genericForm([
+      {label:'Date', type:'date', value:'2025-05-15'},
+      {label:'Type', type:'select', options:['Manual','Adjustment','Depreciation']},
+      {label:'Debit Account', type:'select', options:['Cash','AR','Inventory','Raw Material Cost']},
+      {label:'Credit Account', type:'select', options:['AP','Revenue','Bank','GR/IR Clearing']},
+      {label:'Amount (₹)', type:'number', placeholder:'0.00'},
+      {label:'Narration', type:'textarea', placeholder:'Description'}
+    ]));
+  });
+
+  var importStmtBtn = document.getElementById('importStmtBtn');
+  if (importStmtBtn) importStmtBtn.addEventListener('click', function() { toast('Bank statement imported', 'success'); });
+
+  var fileGSTBtn = document.getElementById('fileGSTBtn');
+  if (fileGSTBtn) fileGSTBtn.addEventListener('click', function() { toast('GSTR-1 filed successfully', 'success'); });
+
+  var uploadInvBtn = document.getElementById('uploadInvBtn');
+  if (uploadInvBtn) uploadInvBtn.addEventListener('click', function() {
+    openModal('Upload Vendor Invoice', genericForm([
+      {label:'Vendor', type:'select', options:['SolarTech Cells','GlassCraft','EVA Industries']},
+      {label:'Invoice No.', type:'text', placeholder:'Vendor invoice number'},
+      {label:'Invoice Date', type:'date', value:'2025-05-15'},
+      {label:'Amount (₹)', type:'number', placeholder:'0.00'}
+    ]));
+  });
+
+  var newAPBtn = document.getElementById('newAPBtn');
+  if (newAPBtn) newAPBtn.addEventListener('click', function() {
+    openModal('Record AP Payment', genericForm([
+      {label:'Vendor', type:'select', options:['SolarTech Cells','GlassCraft','EVA Industries']},
+      {label:'Invoice No.', type:'text', placeholder:'Invoice reference'},
+      {label:'Payment Date', type:'date', value:'2025-05-15'},
+      {label:'Amount (₹)', type:'number', placeholder:'0.00'},
+      {label:'Payment Mode', type:'select', options:['NEFT','RTGS','Cheque','IMPS']},
+      {label:'Bank Reference', type:'text', placeholder:'UTR / Cheque No.'}
+    ]));
+  });
+
+  var newARBtn = document.getElementById('newARBtn');
+  if (newARBtn) newARBtn.addEventListener('click', function() {
+    openModal('Record Customer Receipt', genericForm([
+      {label:'Customer', type:'select', options:['Green Energy Ltd','SunPower Projects','Rajasthan Solar']},
+      {label:'Invoice No.', type:'text', placeholder:'Invoice reference'},
+      {label:'Receipt Date', type:'date', value:'2025-05-15'},
+      {label:'Amount (₹)', type:'number', placeholder:'0.00'},
+      {label:'Payment Mode', type:'select', options:['NEFT','RTGS','Cheque']},
+      {label:'Bank Reference', type:'text', placeholder:'UTR No.'}
+    ]));
+  });
+
+  // ── HR ──
+  var newEmpBtn = document.getElementById('newEmpBtn');
+  if (newEmpBtn) newEmpBtn.addEventListener('click', function() {
+    openModal('New Employee', genericForm([
+      {label:'Full Name', type:'text', placeholder:'Employee name'},
+      {label:'Department', type:'select', options:['Manufacturing','Quality','Procurement','Finance','Sales','IT']},
+      {label:'Role', type:'text', placeholder:'Job title'},
+      {label:'Shift', type:'select', options:['General','Morning','Evening','Night']},
+      {label:'Email', type:'email', placeholder:'employee@solaros.in'},
+      {label:'Phone', type:'text', placeholder:'+91-XXXXXXXXXX'}
+    ]));
+  });
+
+  var markAttnBtn = document.getElementById('markAttnBtn');
+  if (markAttnBtn) markAttnBtn.addEventListener('click', function() { toast('Attendance marked for today', 'success'); });
+
+  var applyLeaveBtn = document.getElementById('applyLeaveBtn');
+  if (applyLeaveBtn) applyLeaveBtn.addEventListener('click', function() {
+    openModal('Apply for Leave', genericForm([
+      {label:'Employee', type:'select', options:['Ramesh Patel','Priya Sharma','Ankit Mehta','Vijay Kumar']},
+      {label:'Leave Type', type:'select', options:['Annual Leave','Sick Leave','Casual Leave','Compensatory Off']},
+      {label:'From Date', type:'date', value:'2025-05-20'},
+      {label:'To Date', type:'date', value:'2025-05-20'},
+      {label:'Reason', type:'textarea', placeholder:'Reason for leave'}
+    ]));
+  });
+
+  var runPayrollBtn = document.getElementById('runPayrollBtn');
+  if (runPayrollBtn) runPayrollBtn.addEventListener('click', function() { toast('Payroll run completed. Net payable: ₹1.24Cr', 'success'); });
+
+  var postJobBtn = document.getElementById('postJobBtn');
+  if (postJobBtn) postJobBtn.addEventListener('click', function() {
+    openModal('Post Job Opening', genericForm([
+      {label:'Job Title', type:'text', placeholder:'e.g. QC Engineer'},
+      {label:'Department', type:'select', options:['Quality','Manufacturing','Finance','Sales','IT']},
+      {label:'Experience Required', type:'text', placeholder:'e.g. 3-5 years'},
+      {label:'Priority', type:'select', options:['High','Medium','Low']}
+    ]));
+  });
+
+  var newProdBtn = document.getElementById('newProdBtn');
+  if (newProdBtn) newProdBtn.addEventListener('click', function() {
+    openModal('New Production Order', genericForm([
+      {label:'Product', type:'select', options:['FG-001 600W Module','FG-002 595W Module','FG-003 580W Bifacial']},
+      {label:'Quantity', type:'number', placeholder:'Units to produce'},
+      {label:'Production Line', type:'select', options:['Line 1','Line 2','Line 4']},
+      {label:'Planned Date', type:'date', value:'2025-05-16'}
+    ]));
+  });
+
+  // ── SETTINGS / PROFILE ──
+  var saveCompanyBtn = document.getElementById('saveCompanyBtn');
+  if (saveCompanyBtn) saveCompanyBtn.addEventListener('click', function() { toast('Company profile saved', 'success'); });
+
+  var saveProfileBtn = document.getElementById('saveProfileBtn');
+  if (saveProfileBtn) saveProfileBtn.addEventListener('click', function() { toast('Profile updated successfully', 'success'); });
+
+  var changePwdBtn = document.getElementById('changePwdBtn');
+  if (changePwdBtn) changePwdBtn.addEventListener('click', function() { toast('Password changed successfully', 'success'); });
+
+  var adjustStockBtn = document.getElementById('adjustStockBtn');
+  if (adjustStockBtn) adjustStockBtn.addEventListener('click', function() {
+    openModal('Stock Adjustment', genericForm([
+      {label:'Item', type:'select', options:['RM-003 EVA Film','RM-005 Ribbon Wire','RM-001 Solar Cells']},
+      {label:'Adjustment Type', type:'select', options:['Add Stock','Remove Stock']},
+      {label:'Quantity', type:'number', placeholder:'Qty'},
+      {label:'Reason', type:'text', placeholder:'Reason for adjustment'}
+    ]));
+  });
+
+  // ── INIT TABS ──
+  initPODetailTabs();
+  initGLTabs();
+  initSettingsTabs();
+});
+</script>
+</body>
 </html>

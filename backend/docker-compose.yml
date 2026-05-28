@@ -1,0 +1,21 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: solaros-erp-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: solaros_erp
+      MYSQL_USER: solaros
+      MYSQL_PASSWORD: solaros
+    ports:
+      - "3306:3306"
+    volumes:
+      - solaros_erp_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pmysql --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  solaros_erp_mysql_data:
